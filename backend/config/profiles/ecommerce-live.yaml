@@ -1,0 +1,19 @@
+id: ecommerce-live
+display_name: 电商直播运营
+owner: agent-ops-lagos
+business_owner: u-country-manager
+service_account: svc-bot-ecommerce-live
+status: staging
+scope: { country: [NG] }
+triggers: []
+tools:
+  - retail-ops.query_ecommerce
+  - retail-ops.query_calendar
+  - competitor-watch.list_price_changes
+  - knowledge.search
+  - memory.propose
+outputs:
+  - { channel: feishu, to: group:ecommerce }
+default_skill: adhoc-live
+limits: { max_run_minutes: 20, max_tool_calls_per_run: 40, max_model_tokens_per_run: 1500000 }
+browser: false

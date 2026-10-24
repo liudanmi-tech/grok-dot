@@ -6,6 +6,7 @@ from pathlib import Path
 
 import yaml
 
+from ...policy import allows
 from ..registry import Tool, ToolContext, ToolError, ToolRegistry
 
 
@@ -33,6 +34,8 @@ class KnowledgeBase:
         for d in self.docs:
             if d.get("visibility") not in ctx.kb_visibility:
                 continue
+            if not allows(ctx.scope, "country", d.get("country", "NG")):  # 知识按国家隔离（未标注的属尼日利亚）
+                continue
             if types and d.get("doc_type") not in types:
                 continue
             score = len(q & _tokens(d["title"] + " " + d["text"])) + (3 if types else 0)
@@ -48,7 +51,8 @@ class KnowledgeBase:
             out = [{"doc_id": d["doc_id"], "title": d["title"], "version": d.get("version"), "approved": True,
                     "visibility": d.get("visibility"), "doc_type": d.get("doc_type"), "text": d["text"][:800],
                     "score": 0} for d in self.docs
-                   if d.get("approved") and d.get("visibility") in ctx.kb_visibility]
+                   if d.get("approved") and d.get("visibility") in ctx.kb_visibility
+                   and allows(ctx.scope, "country", d.get("country", "NG"))]
         out.sort(key=lambda r: r["score"], reverse=True)
         out = out[: args.get("limit", 5)]
         refs = [f"{r['doc_id']}#v{r['version']}" for r in out]

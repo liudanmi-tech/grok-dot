@@ -8,7 +8,7 @@ from app.orchestrator.tasks import TaskError
 
 def test_library_and_seed(p):
     lib = {t["id"]: t for t in p.bots.library()}
-    assert len(lib) == 8 and lib["market-intel"]["hired"] == 1 and lib["content-factory"]["hired"] == 0
+    assert len(lib) == 12 and lib["market-intel"]["hired"] == 1 and lib["content-factory"]["hired"] == 0
     assert {b.id for b in p.bots.list()} == {"chief-of-staff", "market-intel", "biz-review", "price-sentinel", "dealer-assistant"}
 
 

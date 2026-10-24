@@ -1,0 +1,37 @@
+name: channel-expansion/adhoc-expansion
+version: 1.0.0
+owner: agent-ops-lagos
+bots: [channel-expansion]
+description: 门店覆盖诊断：找出沉睡门店与覆盖缺口，给出拜访路线与激活动作
+steps:
+  - id: coverage
+    title: 拉取门店覆盖与沉睡门店
+    type: tool
+    tool: retail-ops.query_coverage
+    args: {}
+    est_minutes: 1
+  - id: sales
+    title: 查询近 14 天区域动销
+    type: tool
+    tool: sales-data.query_sell_through
+    args: { days: 14, group_by: [region, model] }
+    est_minutes: 1
+  - id: kb
+    title: 检索渠道规范
+    type: tool
+    tool: knowledge.search
+    args: { query: "渠道 门店 促销员 陈列 {{goal}}", limit: 4 }
+    est_minutes: 1
+  - id: plan
+    title: 制定拓展与激活方案
+    type: llm
+    task_type: analyze
+    data_class: internal
+    output: true
+    est_minutes: 3
+    system: 你是{{market.name}}市场的渠道拓展员（地推负责人）。基于门店覆盖与动销数据，找出动销门店占比最低的区域和渠道、最该激活的沉睡门店，给出本周拜访路线（按区域分组）、每类门店的激活动作（补货、陈列、促销员、样机）和预期动销门店数。只依据给定数据。
+    prompt: |
+      任务：{{goal}}
+      门店覆盖：{{steps.coverage.result|json}}
+      动销：{{steps.sales.result|json}}
+      渠道规范：{{steps.kb.result|json}}

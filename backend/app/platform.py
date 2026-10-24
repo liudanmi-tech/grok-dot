@@ -23,7 +23,7 @@ from .orchestrator.tasks import TaskService
 from .policy import PolicyEngine
 from .channels.whatsapp import LANG_NAMES, WhatsAppGateway
 from .tools.connectors import (carlcare_tickets, competitor_watch, dealer_msg, knowledge, platform_tools,
-                               pricing_draft, sales_data)
+                               pricing_draft, retail_ops, sales_data)
 from .tools.proxy import ToolProxy
 from .tools.registry import ToolRegistry
 
@@ -69,6 +69,7 @@ class Platform:
         self.pricing = pricing_draft.PricingDrafts(self.db, self.clock, self.artifacts, self.kb)
         pricing_draft.register(self.tools, self.pricing)
         carlcare_tickets.register(self.tools, carlcare_tickets.CarlcareTickets(self.clock, self.artifacts))
+        retail_ops.register(self.tools, retail_ops.RetailOps(self.db, self.clock, self.artifacts))
         platform_tools.register(self.tools, outbox=self.outbox, bus=self.bus, memory=self.memory,
                                 namespace_of=lambda b: self.bots.get(b).namespace)
         self.whatsapp = WhatsAppGateway(self.db, self.audit, self.clock,
@@ -139,13 +140,14 @@ class Platform:
             self.clock.offset_s = float(self._kv("demo.clock_offset_s", 0) or 0)
         self.sales.effects = self._kv("demo.sales_effects", []) or []
 
-    def advance_clock(self, to: str) -> dict:
-        """快进到：standup（今天/明天 07:30 晨会）、review（今天 18:00 晚会）、next_day（明天 07:30）、reset。"""
+    def advance_clock(self, to: str, market_code: str | None = None) -> dict:
+        """快进到（按所选市场的当地时间）：standup（07:30 晨会）、review（今天 18:00 晚会）、next_day（明天 07:30）、reset。"""
         from datetime import datetime, timedelta
-        from .config import LAGOS
+        from .config import market, tz_of
         if not isinstance(self.clock, DemoClock):
             raise ValueError("当前时钟不支持快进")
-        now = self.clock.now().astimezone(LAGOS)
+        tz = tz_of(market(market_code))
+        now = self.clock.now().astimezone(tz)
         if to == "reset":
             self.clock.offset_s = 0
         else:
@@ -153,20 +155,46 @@ class Platform:
             hm = {"standup": (7, 31), "review": (18, 1), "next_day": (7, 31)}.get(to)
             if not hm:
                 raise ValueError(f"未知快进目标 {to}")
-            target = datetime(d.year, d.month, d.day, *hm, tzinfo=LAGOS)
+            target = datetime(d.year, d.month, d.day, *hm, tzinfo=tz)
             if to == "next_day" or target <= now:
                 target += timedelta(days=1)
             self.clock.offset_s += (target - now).total_seconds()
         self._kv_set("demo.clock_offset_s", self.clock.offset_s)
         self.audit.append("demo.clock", to=to, offset_s=round(self.clock.offset_s))
         self.rhythm.tick()
-        return self.clock_state()
+        return self.clock_state(market_code)
 
-    def clock_state(self) -> dict:
-        from .config import LAGOS
-        now = self.clock.now().astimezone(LAGOS)
+    def clock_state(self, market_code: str | None = None) -> dict:
+        from .config import MARKETS, market, tz_of
+        m = market(market_code)
+        now = self.clock.now().astimezone(tz_of(m))
         return {"now": now.isoformat(timespec="minutes"), "offset_days": round(getattr(self.clock, "offset_s", 0) / 86400, 2),
-                "phase": "standup" if now.hour < 12 else "work" if now.hour < 18 else "review"}
+                "phase": "standup" if now.hour < 12 else "work" if now.hour < 18 else "review",
+                "market": m["code"], "city": m["city"],
+                "markets": [{"code": x["code"], "name": x["name"], "city": x["city"]} for x in MARKETS.values()]}
+
+    # ---------- 演示数据：印尼（雅加达 Infinix 12.12 档期冲量） ----------
+    ID_SQUAD = ["market-intel", "price-sentinel", "ecommerce-live", "campaign-planner", "channel-expansion",
+                "channel-incentive", "content-factory"]
+    ID_KPI_TITLE = "雅加达 Infinix 12.12 档期终端销量提升 20%"
+
+    def seed_indonesia(self, actor: str) -> dict:
+        """招募印尼（雅加达）小队，印尼国家经理下达 KPI，雅加达主管认领并开工。幂等：已存在则直接返回。"""
+        hired = []
+        for tpl in self.ID_SQUAD:
+            mine = [b for b in self.bots.list() if b.template == tpl and b.scope.get("country") == ["ID"]
+                    and (b.scope.get("region") or ["Jakarta"]) == ["Jakarta"]]
+            b = mine[0] if mine else self.bots.hire(tpl, actor=actor, region="Jakarta", country="ID")
+            if not mine:
+                self.audit.append("bot.hire", bot_id=b.id, actor=actor, template=tpl, scope=b.scope)
+            hired.append(b.id)
+        k = next((x for x in self.rhythm.list_kpis() if x["title"] == self.ID_KPI_TITLE), None)
+        if not k:
+            k = self.rhythm.create_kpi(actor="u-cm-indonesia", title=self.ID_KPI_TITLE, brand=["Infinix"],
+                                       region=["Jakarta"], uplift_pct=20, weeks=4, owner="u-lead-jakarta", country="ID")
+        if k["status"] != "active":
+            self.rhythm.claim(k["kpi_id"], actor="u-lead-jakarta", squad=hired)
+        return {"kpi_id": k["kpi_id"], "squad": hired}
 
     # ---------- 后台调度线程 ----------
     def start_background(self) -> None:

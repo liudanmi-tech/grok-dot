@@ -4,21 +4,23 @@ import { post } from "../api";
 import { usePoll } from "../hooks";
 import { Avatar } from "../ui";
 
-const REGIONS = ["全国", "Lagos", "North", "South-West", "South-East", "FCT"];
+import { MARKETS } from "../ui";
 
 export default function Library({ go, onHired }: { go: (p: string) => void; onHired: () => void }) {
   const { data, reload } = usePoll<any[]>("/bot-templates", 0);
   const [pick, setPick] = useState<any>(null);
   const [name, setName] = useState("");
   const [region, setRegion] = useState("全国");
+  const [country, setCountry] = useState("NG");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const open = (t: any) => { setPick(t); setName(""); setRegion("全国"); setErr(null); };
+  const open = (t: any) => { setPick(t); setName(""); setRegion("全国"); setCountry("NG"); setErr(null); };
   const hire = async () => {
     setErr(null); setBusy(true);
     try {
-      const r = await post("/bots", { template: pick.id, display_name: name.trim() || undefined, region: region === "全国" ? undefined : region });
+      const r = await post("/bots", { template: pick.id, display_name: name.trim() || undefined, region: region === "全国" ? undefined : region,
+        country: country === "NG" ? undefined : country });
       onHired(); reload(); setPick(null); go(`bot/${r.id}`);
     } catch (e: any) { setErr(e.message); }
     finally { setBusy(false); }
@@ -76,8 +78,14 @@ export default function Library({ go, onHired }: { go: (p: string) => void; onHi
               <input value={name} placeholder={region === "全国" ? pick.name : `${pick.name} · ${region}`} onChange={(e) => setName(e.target.value)} />
             </div>
             <div className="field">
+              <label>市场（数据、竞品、知识库按国家隔离）</label>
+              <div className="row">{Object.entries(MARKETS).map(([c, m]) => (
+                <span key={c} className={`mention ${country === c ? "on" : ""}`} onClick={() => { setCountry(c); setRegion("全国"); }}>{m.name}</span>
+              ))}</div>
+            </div>
+            <div className="field">
               <label>负责区域（数据权限收窄到该区域）</label>
-              <div className="row">{REGIONS.map((r) => (
+              <div className="row">{["全国", ...MARKETS[country].regions].map((r) => (
                 <span key={r} className={`mention ${region === r ? "on" : ""}`} onClick={() => setRegion(r)}>{r}</span>
               ))}</div>
             </div>

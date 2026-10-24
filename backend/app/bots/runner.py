@@ -12,7 +12,7 @@ import re
 import threading
 from typing import Any, Callable
 
-from ..config import LAGOS, Clock
+from ..config import Clock, market_of, tz_of
 from ..deliverables import CARD_SPEC, card_to_markdown, parse_card
 from ..gateway.service import BudgetExceeded, GatewayError, ModelGateway
 from ..memory import MemoryService
@@ -152,7 +152,9 @@ class SkillRunner:
         ctx = task["context"] or {}
         ctx.setdefault("steps", {})
         ctx["goal"] = task["goal"] + (f"\n补充要求：{ctx['requester_note']}" if ctx.get("requester_note") else "")
-        ctx["today"] = self.clock.now().astimezone(LAGOS).date().isoformat()
+        mk = market_of(task["requester_scope"], self.bots.get(task["bot_id"]).scope)
+        ctx["market"] = mk  # 市场上下文：国家、币种、语言（技能提示词用 {{market.name}} 等引用）
+        ctx["today"] = self.clock.now().astimezone(tz_of(mk)).date().isoformat()
         outputs = list(task["outputs"]) if task["status"] != "rework" else []
 
         for i, spec in enumerate(skill["steps"]):

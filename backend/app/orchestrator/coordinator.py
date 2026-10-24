@@ -21,7 +21,7 @@ from .tasks import TaskError, TaskService
 log = logging.getLogger(__name__)
 
 TEMPLATE = "chief-of-staff"
-MAX_ASSIGNMENTS = 6
+MAX_ASSIGNMENTS = 8
 STAGGER_S = 1.0
 CHILD_DONE = {"delivered", "accepted", "failed", "cancelled"}
 CHILD_WAITING = {"awaiting_approval": "等待审批", "needs_human": "需要人工处理", "paused": "已暂停",
@@ -34,6 +34,10 @@ KEYWORDS = {
     "biz-review": ["销量", "复盘", "区域", "汇总", "周报", "经营", "出货", "库存"],
     "content-factory": ["文案", "内容", "海报", "宣传", "广告", "社媒", "状态"],
     "voice-of-customer": ["售后", "投诉", "工单", "质量", "故障", "carlcare", "用户声音"],
+    "channel-expansion": ["门店", "覆盖", "沉睡", "拜访", "铺货", "地推", "陈列"],
+    "channel-incentive": ["激励", "返利", "奖励", "促销员", "冲量", "经销商政策"],
+    "ecommerce-live": ["电商", "直播", "shopee", "tokopedia", "tiktok", "带货", "旗舰店", "优惠券"],
+    "campaign-planner": ["档期", "大促", "斋月", "ramadan", "12.12", "11.11", "活动", "分期", "以旧换新"],
 }
 
 

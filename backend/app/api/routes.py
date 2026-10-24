@@ -74,10 +74,10 @@ def _with_links(p, t: dict) -> dict:
     return t
 
 
-def _on_duty(p) -> bool:
-    from ..config import LAGOS
+def _on_duty(p, b=None) -> bool:
+    from ..config import market_of, tz_of
     from ..orchestrator.rhythm import REVIEW_AT, STANDUP_AT
-    t = p.clock.now().astimezone(LAGOS)
+    t = p.clock.now().astimezone(tz_of(market_of(b.scope if b else None)))  # 按 bot 所在市场的当地时间
     return STANDUP_AT <= (t.hour, t.minute) < REVIEW_AT
 
 
@@ -98,7 +98,7 @@ def _bot_card(p, b) -> dict:
         activity = "needs_you"
     elif current:
         activity = "working"
-    elif meta.get("channel", "内部") == "内部" and not _on_duty(p):
+    elif meta.get("channel", "内部") == "内部" and not _on_duty(p, b):
         activity = "off_duty"   # 下班：07:30 晨会前、18:00 晚会后（对外渠道岗位 7×24 在线）
     else:
         activity = "idle"       # 待命：上班时间，手上没活
@@ -149,6 +149,7 @@ class HireIn(BaseModel):
     template: str
     display_name: str | None = None
     region: str | None = None
+    country: str | None = None
 
 
 HIRE_ROLES = {"agent_ops", "country_manager", "supervisor"}  # 主管可为自己的 KPI 招募 bot
@@ -158,7 +159,8 @@ HIRE_ROLES = {"agent_ops", "country_manager", "supervisor"}  # 主管可为自�
 def hire(body: HireIn, p=Depends(P), user=Depends(current_user)):
     if not HIRE_ROLES & set(user["roles"]):
         raise HTTPException(403, "只有智能体运营或国家经理可以招募成员")
-    b = guard(p.bots.hire, body.template, actor=user["id"], display_name=body.display_name, region=body.region)
+    b = guard(p.bots.hire, body.template, actor=user["id"], display_name=body.display_name, region=body.region,
+              country=body.country)
     p.audit.append("bot.hire", bot_id=b.id, actor=user["id"], template=b.template, scope=b.scope)
     return _bot_card(p, b)
 
@@ -342,6 +344,7 @@ class KpiIn(BaseModel):
     weeks: int = 4
     owner: str | None = None
     parent_id: str | None = None
+    country: str | None = None
 
 
 def _need(user, *roles):
@@ -420,19 +423,26 @@ def kpi_say(kpi_id: str, body: SayIn, p=Depends(P), user=Depends(current_user)):
     return p.rhythm.channel(kpi_id)
 
 
+@router.post("/demo/seed/indonesia")
+def demo_seed_indonesia(p=Depends(P), user=Depends(current_user)):
+    _need(user, "country_manager", "supervisor", "agent_ops")
+    return guard(p.seed_indonesia, user["id"])
+
+
 @router.get("/demo/clock")
-def demo_clock(p=Depends(P)):
-    return p.clock_state()
+def demo_clock(market: str | None = None, p=Depends(P)):
+    return p.clock_state(market)
 
 
 class AdvanceIn(BaseModel):
     to: str
+    market: str | None = None
 
 
 @router.post("/demo/clock")
 def demo_advance(body: AdvanceIn, p=Depends(P), user=Depends(current_user)):
     _need(user, "country_manager", "supervisor", "agent_ops")
-    return guard(p.advance_clock, body.to)
+    return guard(p.advance_clock, body.to, body.market)
 
 
 # ---------- 任务对话、数字员工、驾驶舱今日进展 ----------

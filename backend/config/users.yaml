@@ -25,7 +25,15 @@ users:
     name: North 销售主管
     roles: [supervisor, requester]
     scope: { country: [NG], region: [North] }
+  - id: u-cm-indonesia
+    name: Country Manager (ID) · 印尼国家经理
+    roles: [country_manager, requester]
+    scope: { country: [ID] }
+  - id: u-lead-jakarta
+    name: Jakarta 销售主管
+    roles: [supervisor, requester]
+    scope: { country: [ID], region: [Jakarta] }
   - id: u-agent-ops
     name: Agent Ops
     roles: [agent_ops, requester]
-    scope: { country: [NG] }
+    scope: { country: [NG, ID] }

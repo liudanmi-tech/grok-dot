@@ -1,0 +1,20 @@
+id: channel-expansion
+display_name: 渠道拓展员
+owner: agent-ops-lagos
+business_owner: u-country-manager
+service_account: svc-bot-channel-expansion
+status: staging
+scope: { country: [NG] }
+triggers: []
+tools:
+  - retail-ops.query_coverage
+  - sales-data.query_sell_through
+  - sales-data.query_inventory
+  - knowledge.search
+  - notify.notify_internal
+  - memory.propose
+outputs:
+  - { channel: feishu, to: group:channel-team }
+default_skill: adhoc-expansion
+limits: { max_run_minutes: 20, max_tool_calls_per_run: 40, max_model_tokens_per_run: 1500000 }
+browser: false

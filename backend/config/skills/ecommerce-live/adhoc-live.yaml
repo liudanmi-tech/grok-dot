@@ -1,0 +1,44 @@
+name: ecommerce-live/adhoc-live
+version: 1.0.0
+owner: agent-ops-lagos
+bots: [ecommerce-live]
+description: 电商旗舰店与直播带货：排期、脚本要点、专享券方案
+steps:
+  - id: shop
+    title: 拉取电商与直播数据
+    type: tool
+    tool: retail-ops.query_ecommerce
+    args: {}
+    est_minutes: 1
+  - id: prices
+    title: 拉取近 7 天竞品价格
+    type: tool
+    tool: competitor-watch.list_price_changes
+    args: { since_hours: 168 }
+    est_minutes: 1
+  - id: calendar
+    title: 查看大促档期
+    type: tool
+    tool: retail-ops.query_calendar
+    args: { days: 60 }
+    est_minutes: 1
+  - id: kb
+    title: 检索卖点与促销政策
+    type: tool
+    tool: knowledge.search
+    args: { query: "卖点 直播 优惠券 促销 {{goal}}", limit: 5 }
+    est_minutes: 1
+  - id: plan
+    title: 制定直播与店铺运营方案
+    type: llm
+    task_type: generate
+    data_class: internal
+    output: true
+    est_minutes: 4
+    system: 你是{{market.name}}市场的电商直播运营。基于平台数据与竞品价格，给出未来 7 天直播排期（平台 × 时段 × 主推型号）、每场脚本要点（开场钩子、3 个卖点、应对竞品比价的话术，用{{market.langs}}中的主要语言写示例句）、专享券与赠品方案（遵守促销政策上限，币种 {{market.currency}}）、目标 GMV。只依据给定数据。
+    prompt: |
+      任务：{{goal}}
+      电商与直播：{{steps.shop.result|json}}
+      竞品价格：{{steps.prices.result|json}}
+      档期：{{steps.calendar.result|json}}
+      知识库：{{steps.kb.result|json}}

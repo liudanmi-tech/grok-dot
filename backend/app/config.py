@@ -21,6 +21,34 @@ VAR_DIR = Path(os.environ.get("NGAP_VAR_DIR", BACKEND_DIR / "var"))
 
 LAGOS = ZoneInfo("Africa/Lagos")
 
+# 市场（国家）维度：数据、竞品、知识库、时区、币种、语言都按国家区分；数据权限按 scope.country 隔离
+MARKETS = {
+    "NG": {"code": "NG", "name": "尼日利亚", "en": "Nigeria", "city": "拉各斯", "tz": "Africa/Lagos", "currency": "NGN",
+           "langs": "英语、皮钦语、豪萨语、约鲁巴语、伊博语", "langs_en": "English, Nigerian Pidgin and Hausa",
+           "regions": ["Lagos", "North", "South-West", "South-East", "FCT"]},
+    "ID": {"code": "ID", "name": "印尼", "en": "Indonesia", "city": "雅加达", "tz": "Asia/Jakarta", "currency": "IDR",
+           "langs": "印尼语（Bahasa Indonesia）、爪哇语、巽他语", "langs_en": "Bahasa Indonesia, Javanese and Sundanese",
+           "regions": ["Jakarta", "Jawa Barat", "Jawa Timur", "Sumatera Utara", "Sulawesi Selatan"]},
+}
+DEFAULT_MARKET = "NG"
+
+
+def market(code: str | None) -> dict:
+    return MARKETS.get(code or DEFAULT_MARKET, MARKETS[DEFAULT_MARKET])
+
+
+def market_of(*scopes: dict | None) -> dict:
+    """按作用域（下达人快照优先，其次 bot）判断市场：country 只有一个时取它，否则默认尼日利亚。"""
+    for sc in scopes:
+        c = (sc or {}).get("country")
+        if c and len(c) == 1 and c[0] in MARKETS:
+            return MARKETS[c[0]]
+    return MARKETS[DEFAULT_MARKET]
+
+
+def tz_of(m: dict) -> ZoneInfo:
+    return ZoneInfo(m["tz"])
+
 
 def _load_dotenv(path: Path) -> None:
     """读取 backend/.env（不覆盖已有环境变量）。密钥只放在这个文件里，不进 Git。"""

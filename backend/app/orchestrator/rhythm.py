@@ -15,7 +15,7 @@ import uuid
 from datetime import date, datetime, timedelta
 from typing import Any
 
-from ..config import LAGOS, iso
+from ..config import MARKETS, iso, market, tz_of
 from ..db import dumps, loads
 from ..gateway.service import BudgetExceeded, GatewayError
 from .coordinator import TEMPLATE as CHIEF
@@ -36,6 +36,10 @@ DEFAULT_OBJECTIVES = {
     "content-factory": ("为本周主推型号产出多语种促销文案与经销商话术", "可用素材数"),
     "voice-of-customer": ("找出影响成交的售后问题与口碑风险，给出应对建议", "Top 问题清单"),
     "promoter-coach": ("把本周主推卖点与竞品话术教给促销员", "培训覆盖门店数"),
+    "channel-expansion": ("激活目标区域的沉睡门店，排好每周拜访路线并推动补货与陈列", "动销门店数"),
+    "channel-incentive": ("设计拉动主推型号的经销商与促销员激励方案并推动审批", "获批方案数 / 预期增量"),
+    "ecommerce-live": ("排好每周电商直播并优化主推型号的店铺转化", "直播场次与电商销量"),
+    "campaign-planner": ("为最近的大促档期做活动方案（让利、分期、以旧换新、节奏）", "方案落地与档期销量"),
 }
 
 
@@ -64,10 +68,18 @@ class Rhythm:
 
     # ================= 时间 =================
     def today(self) -> date:
-        return self.clock.now().astimezone(LAGOS).date()
+        return self.clock.now().astimezone(tz_of(self.market(None))).date()
 
-    def _at(self, d: date, hm: tuple[int, int]) -> datetime:
-        return datetime(d.year, d.month, d.day, hm[0], hm[1], tzinfo=LAGOS)
+    # 每个 KPI 按自己市场的时区过日子（拉各斯 / 雅加达各自 07:30 晨会、18:00 晚会）
+    def market(self, k: dict | None) -> dict:
+        countries = ((k or {}).get("filter") or {}).get("country") or [None]
+        return market(countries[0])
+
+    def day_of(self, k: dict | None) -> date:
+        return self.clock.now().astimezone(tz_of(self.market(k))).date()
+
+    def _at(self, d: date, hm: tuple[int, int], k: dict | None = None) -> datetime:
+        return datetime(d.year, d.month, d.day, hm[0], hm[1], tzinfo=tz_of(self.market(k)))
 
     # ================= KPI =================
     def _row(self, kpi_id: str) -> dict:
@@ -83,23 +95,30 @@ class Rhythm:
         return [self._row(r["kpi_id"]) for r in rows]
 
     def create_kpi(self, *, actor: str, title: str, brand: list[str] | None, region: list[str] | None,
-                   uplift_pct: float, weeks: int = 4, owner: str | None = None, parent_id: str | None = None) -> dict:
+                   uplift_pct: float, weeks: int = 4, owner: str | None = None, parent_id: str | None = None,
+                   country: str | None = None) -> dict:
         if not title.strip():
             raise RhythmError("请写 KPI 名称")
         if not 0 < uplift_pct <= 100:
             raise RhythmError("提升幅度应在 0–100% 之间")
         if owner and owner not in self.users:
             raise RhythmError("指定的负责人不存在")
-        start = self.today()
+        country = country or "NG"
+        if country not in MARKETS:
+            raise RhythmError(f"未知市场 {country}")
+        bad = [r for r in (region or []) if r not in MARKETS[country]["regions"]]
+        if bad:
+            raise RhythmError(f"{MARKETS[country]['name']}没有区域 {'、'.join(bad)}")
+        start = self.day_of({"filter": {"country": [country]}})
         end = start + timedelta(days=7 * max(1, min(weeks, 12)) - 1)
         base = self.sales.daily_units(region=region, brand=brand, start=(start - timedelta(days=BASELINE_DAYS)).isoformat(),
-                                      end=(start - timedelta(days=1)).isoformat())
+                                      end=(start - timedelta(days=1)).isoformat(), country=[country])
         baseline = sum(base.values()) / max(1, len(base))
         kpi_id = "kpi_" + uuid.uuid4().hex[:8]
         self.db.execute(
             "INSERT INTO kpis(kpi_id, parent_id, title, metric, filter, baseline_daily, uplift_pct, start_date, end_date,"
             " owner, squad, status, created_by, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-            [kpi_id, parent_id, title.strip(), "sell_through_units", dumps({"brand": brand, "region": region}),
+            [kpi_id, parent_id, title.strip(), "sell_through_units", dumps({"brand": brand, "region": region, "country": [country]}),
              round(baseline, 2), uplift_pct, start.isoformat(), end.isoformat(), owner, dumps([]),
              "assigned" if owner else "open", actor, iso(self.clock.now())])
         self.audit.append("kpi.create", actor=actor, kpi_id=kpi_id, title=title, owner=owner, uplift_pct=uplift_pct)
@@ -112,10 +131,12 @@ class Rhythm:
         k = self._row(kpi_id)
         if k["owner"] and k["owner"] != actor:
             raise RhythmError("只有被指定的负责人可以认领")
-        team = {m["bot_id"] for m in self.coordinator.roster()}
+        code = self.market(k)["code"]
+        # 只能选同一市场的成员（bot 的国家作用域要覆盖 KPI 所在国家）
+        team = {m["bot_id"] for m in self.coordinator.roster() if code in (m["scope"].get("country") or [code])}
         squad = [b for b in dict.fromkeys(squad) if b in team]
         if not squad:
-            raise RhythmError("请至少选择一名可派内部任务的 bot")
+            raise RhythmError(f"请至少选择一名{self.market(k)['name']}市场、可派内部任务的 bot")
         self.db.execute("UPDATE kpis SET owner=?, squad=?, status='active', claimed_at=? WHERE kpi_id=?",
                         [actor, dumps(squad), iso(self.clock.now()), kpi_id])
         self.audit.append("kpi.claim", actor=actor, kpi_id=kpi_id, squad=squad)
@@ -131,7 +152,7 @@ class Rhythm:
         return self.claim(kpi_id, actor=actor, squad=squad)
 
     def scope_of(self, k: dict) -> dict:
-        scope: dict = {"country": ["NG"]}
+        scope: dict = {"country": k["filter"].get("country") or ["NG"]}
         for dim in ("region", "brand"):
             if k["filter"].get(dim):
                 scope[dim] = k["filter"][dim]
@@ -141,8 +162,9 @@ class Rhythm:
     def progress(self, k: dict) -> dict:
         start, end = date.fromisoformat(k["start_date"]), date.fromisoformat(k["end_date"])
         days_total = (end - start).days + 1
-        as_of = min(self.today() - timedelta(days=1), end)
+        as_of = min(self.day_of(k) - timedelta(days=1), end)
         daily = self.sales.daily_units(region=k["filter"].get("region"), brand=k["filter"].get("brand"),
+                                       country=k["filter"].get("country") or ["NG"],
                                        start=start.isoformat(), end=as_of.isoformat()) if as_of >= start else {}
         target_daily = k["baseline_daily"] * (1 + k["uplift_pct"] / 100)
         elapsed = max(0, (as_of - start).days + 1)
@@ -165,8 +187,9 @@ class Rhythm:
         k["progress"] = self.progress(k)
         k["owner_name"] = self._uname(k["owner"])
         k["created_by_name"] = self._uname(k["created_by"])
-        k["week_no"] = self.week_no(k, self.today())
-        today = self.today().isoformat()
+        k["week_no"] = self.week_no(k, self.day_of(k))
+        k["market"] = {x: self.market(k)[x] for x in ("code", "name", "city", "currency", "tz")}
+        today = self.day_of(k).isoformat()
         k["today"] = {m["kind"]: m["status"] for m in self.db.query(
             "SELECT kind, status FROM meetings WHERE kpi_id=? AND day=?", [kpi_id, today])}
         last = self.db.one("SELECT * FROM meetings WHERE kpi_id=? AND kind='review' AND status='done'"
@@ -208,7 +231,7 @@ class Rhythm:
 
     def ensure_week(self, kpi_id: str, d: date | None = None) -> dict:
         k = self._row(kpi_id)
-        d = d or self.today()
+        d = d or self.day_of(k)
         n = self.week_no(k, d)
         w = self.week(kpi_id, n)
         if w:
@@ -278,7 +301,7 @@ class Rhythm:
         k = self._row(kpi_id)
         if k["status"] != "active":
             raise RhythmError("KPI 还没有被认领")
-        day = self.today()
+        day = self.day_of(k)
         existing = self.db.one("SELECT * FROM meetings WHERE kpi_id=? AND kind='standup' AND day=?", [kpi_id, day.isoformat()])
         if existing and not force:
             return self._meeting(existing)
@@ -319,7 +342,7 @@ class Rhythm:
         mission = self.tasks.create(bot_id=self._chief(), goal=f"晨会 {day.isoformat()} · {k['title']}", source="standup",
                                     requester=k["owner"], requester_scope=self.scope_of(k))
         self.tasks.save_context(mission["task_id"], {"kpi_id": kpi_id, "meeting_id": meeting_id,
-                                                     "preset": {"brief": summary, "picks": assignments[:6]}})
+                                                     "preset": {"brief": summary, "picks": assignments[:8]}})
         data = {"summary": summary, "critiques": critiques, "assignments": assignments, "progress": _brief_prog(prog),
                 "week_no": self.week_no(k, day)}
         now = iso(self.clock.now())
@@ -336,7 +359,7 @@ class Rhythm:
         for c in critiques:
             self.say(kpi_id, chief, "bot", "critique",
                      f"@{self.bots.get(c['bot_id']).display_name}（{RATINGS[c['rating']]}）{c['comment']}", ref=c["bot_id"])
-        for a in assignments[:6]:
+        for a in assignments[:8]:
             self.say(kpi_id, chief, "bot", "assign", f"@{self.bots.get(a['bot_id']).display_name} 今日任务：{a['goal']}",
                      ref=a["bot_id"])
         self.coordinator.runner.start(mission["task_id"])
@@ -368,7 +391,7 @@ class Rhythm:
 
     def _prepare_review(self, kpi_id: str, *, actor: str, force: bool) -> dict:
         k = self._row(kpi_id)
-        day = self.today()
+        day = self.day_of(k)
         existing = self.db.one("SELECT * FROM meetings WHERE kpi_id=? AND kind='review' AND day=?", [kpi_id, day.isoformat()])
         if existing and (existing["status"] == "done" or not force):
             return self._meeting(existing)
@@ -413,7 +436,7 @@ class Rhythm:
         k = self._row(kpi_id)
         if k["owner"] != actor:
             raise RhythmError("只有负责人可以主持晚会")
-        m = self.db.one("SELECT * FROM meetings WHERE kpi_id=? AND kind='review' AND day=?", [kpi_id, self.today().isoformat()])
+        m = self.db.one("SELECT * FROM meetings WHERE kpi_id=? AND kind='review' AND day=?", [kpi_id, self.day_of(k).isoformat()])
         if not m:
             m = self.db.one("SELECT * FROM meetings WHERE meeting_id=?", [self.prepare_review(kpi_id)["meeting_id"]])
         if m["status"] == "done":
@@ -512,16 +535,16 @@ class Rhythm:
 
     # ================= 定时 =================
     def tick(self) -> None:
-        now = self.clock.now().astimezone(LAGOS)
-        day = now.date()
         for k in self.list_kpis():
+            now = self.clock.now().astimezone(tz_of(self.market(k)))
+            day = now.date()
             if k["status"] != "active" or day > date.fromisoformat(k["end_date"]):
                 continue
             kid = k["kpi_id"]
-            if now >= self._at(day, STANDUP_AT) and not self.db.one(
+            if now >= self._at(day, STANDUP_AT, k) and not self.db.one(
                     "SELECT 1 FROM meetings WHERE kpi_id=? AND kind='standup' AND day=?", [kid, day.isoformat()]):
                 self._spawn(f"standup:{kid}", lambda kid=kid: self.standup(kid))
-            elif now >= self._at(day, REVIEW_AT) and not self.db.one(
+            elif now >= self._at(day, REVIEW_AT, k) and not self.db.one(
                     "SELECT 1 FROM meetings WHERE kpi_id=? AND kind='review' AND day=?", [kid, day.isoformat()]):
                 self._spawn(f"review:{kid}", lambda kid=kid: self.prepare_review(kid))
 

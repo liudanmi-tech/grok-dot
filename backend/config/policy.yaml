@@ -16,6 +16,7 @@ tiers:
     - send:promoter_message
     - submit:pricing_change
     - publish:content
+    - submit:incentive_plan
   handoff:
     - commit:delivery_date
     - handle:complaint
@@ -32,6 +33,7 @@ approvers:
   send:promoter_message: { role: promoter_lead, backup: channel_manager }
   submit:pricing_change: { role: country_manager, backup: sales_director }
   publish:content:       { role: brand_manager, backup: marketing_manager }
+  submit:incentive_plan: { role: country_manager, backup: sales_director }
 
 # 审批时效（分钟）；escalate 为升级给备份审批人的时间
 ttl:

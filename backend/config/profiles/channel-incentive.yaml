@@ -1,0 +1,19 @@
+id: channel-incentive
+display_name: 渠道激励策划
+owner: agent-ops-lagos
+business_owner: u-country-manager
+service_account: svc-bot-channel-incentive
+status: staging
+scope: { country: [NG] }
+triggers: []
+tools:
+  - sales-data.query_sell_through
+  - retail-ops.query_coverage
+  - knowledge.search
+  - retail-ops.submit_incentive
+  - memory.propose
+outputs:
+  - { channel: feishu, to: group:channel-team }
+default_skill: adhoc-incentive
+limits: { max_run_minutes: 20, max_tool_calls_per_run: 40, max_model_tokens_per_run: 1500000 }
+browser: false

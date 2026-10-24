@@ -209,3 +209,15 @@ export function DeliverableCard({ taskId, index, fallback, fold = true, onAction
 function currentUserId() {
   try { return localStorage.getItem("ngap.user") || "u-country-manager"; } catch { return "u-country-manager"; }
 }
+
+// ---------- 市场（国家） ----------
+export const MARKETS: Record<string, { name: string; city: string; currency: string; regions: string[] }> = {
+  NG: { name: "尼日利亚", city: "拉各斯", currency: "NGN", regions: ["Lagos", "North", "South-West", "South-East", "FCT"] },
+  ID: { name: "印尼", city: "雅加达", currency: "IDR", regions: ["Jakarta", "Jawa Barat", "Jawa Timur", "Sumatera Utara", "Sulawesi Selatan"] },
+};
+export const countryOf = (scope?: any) => (scope?.country?.length === 1 ? scope.country[0] : "NG");
+export function demoMarket(): string { try { return localStorage.getItem("demo.market") || "NG"; } catch { return "NG"; } }
+export function setDemoMarket(code: string) {
+  try { localStorage.setItem("demo.market", code); } catch { /* 忽略 */ }
+  window.dispatchEvent(new Event("demo-market"));
+}

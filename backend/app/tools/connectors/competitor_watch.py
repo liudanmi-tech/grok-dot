@@ -9,24 +9,36 @@ from datetime import timedelta
 
 from ...artifacts import ArtifactStore
 from ...config import Clock, iso
+from ...policy import allows
 from ..registry import Tool, ToolContext, ToolRegistry
 
 PRICE_EVENTS = [
-    # (几小时前, 品牌, 型号, 区域, 原价 NGN, 现价 NGN, 来源)
-    (6, "Samsung", "Galaxy A16", "Lagos", 189000, 175000, "example-ecommerce-1"),
-    (20, "Redmi", "Note 14", "NG", 215000, 209000, "example-ecommerce-1"),
-    (50, "Redmi", "A3", "NG", 99000, 95000, "example-ecommerce-2"),
-    (130, "Samsung", "Galaxy A06", "NG", 119000, 112000, "example-brand-site"),
+    # (几小时前, 国家, 品牌, 型号, 区域, 原价, 现价, 来源)；价格为当地货币
+    (6, "NG", "Samsung", "Galaxy A16", "Lagos", 189000, 175000, "example-ecommerce-1"),
+    (20, "NG", "Redmi", "Note 14", "NG", 215000, 209000, "example-ecommerce-1"),
+    (50, "NG", "Redmi", "A3", "NG", 99000, 95000, "example-ecommerce-2"),
+    (130, "NG", "Samsung", "Galaxy A06", "NG", 119000, 112000, "example-brand-site"),
+    # 印尼（IDR）：Redmi 15C 在雅加达电商大幅降价、Samsung A07 开学季促销，冲击 Infinix Hot 60i 价格带
+    (8, "ID", "Redmi", "15C", "Jakarta", 1699000, 1499000, "example-shopee"),
+    (26, "ID", "Samsung", "Galaxy A07", "ID", 1599000, 1499000, "example-tiktok-shop"),
+    (60, "ID", "OPPO", "A5i", "ID", 1799000, 1699000, "example-brand-site"),
+    (140, "ID", "vivo", "Y19s", "Jawa Timur", 1899000, 1849000, "example-erafone"),
 ]
 LAUNCHES = [
-    (30, "Samsung", "Galaxy A17", "NG", 205000, "6.7\" · 8+128GB · 5000mAh", "example-brand-site"),
-    (100, "Redmi", "13x", "NG", 129000, "6.79\" · 6+128GB · 5030mAh", "example-ecommerce-2"),
+    (30, "NG", "Samsung", "Galaxy A17", "NG", 205000, "6.7\" · 8+128GB · 5000mAh", "example-brand-site"),
+    (100, "NG", "Redmi", "13x", "NG", 129000, "6.79\" · 6+128GB · 5030mAh", "example-ecommerce-2"),
+    (40, "ID", "Redmi", "Note 15", "ID", 2599000, "6.77\" · 8+256GB · 5500mAh · 33W", "example-brand-site"),
+    (90, "ID", "realme", "C85", "ID", 1999000, "6.8\" · 6+128GB · 7000mAh · IP69", "example-shopee"),
 ]
+CURRENCY = {"NG": "NGN", "ID": "IDR"}
 SOURCES = {
     "example-ecommerce-1": {"name": "电商平台 A（示例）", "ok": True},
     "example-ecommerce-2": {"name": "电商平台 B（示例）", "ok": True},
     "example-brand-site": {"name": "竞品官网（示例）", "ok": True},
     "example-ecommerce-3": {"name": "电商平台 C（示例）", "ok": False, "reason": "验证码拦截"},
+    "example-shopee": {"name": "Shopee 印尼（示例）", "ok": True},
+    "example-tiktok-shop": {"name": "TikTok Shop 印尼（示例）", "ok": True},
+    "example-erafone": {"name": "Erafone 门店价（示例）", "ok": True},
 }
 
 
@@ -45,11 +57,11 @@ class CompetitorWatch:
         since = args.get("since_hours", 24)
         brands = set(args.get("brand") or [])
         rows = []
-        for h, brand, model, region, old, new, src in PRICE_EVENTS:
-            if h > since or (brands and brand not in brands):
+        for h, country, brand, model, region, old, new, src in PRICE_EVENTS:
+            if h > since or (brands and brand not in brands) or not allows(ctx.scope, "country", country):
                 continue
-            rows.append({"observed_at": iso(now - timedelta(hours=h)), "brand": brand, "model": model,
-                         "region": region, "old_price_ngn": old, "new_price_ngn": new,
+            rows.append({"observed_at": iso(now - timedelta(hours=h)), "country": country, "brand": brand, "model": model,
+                         "region": region, "currency": CURRENCY[country], "old_price": old, "new_price": new,
                          "change_pct": round((new - old) / old * 100, 1), "source": src,
                          "source_name": SOURCES[src]["name"]})
         big = any(abs(r["change_pct"]) >= 5 for r in rows)
@@ -62,9 +74,9 @@ class CompetitorWatch:
     def list_launches(self, args: dict, ctx: ToolContext) -> dict:
         now = self.clock.now()
         since = args.get("since_hours", 168)
-        rows = [{"announced_at": iso(now - timedelta(hours=h)), "brand": b, "model": m, "region": r,
-                 "price_ngn": p, "spec": s, "source_name": SOURCES[src]["name"]}
-                for h, b, m, r, p, s, src in LAUNCHES if h <= since]
+        rows = [{"announced_at": iso(now - timedelta(hours=h)), "country": c, "brand": b, "model": m, "region": r,
+                 "currency": CURRENCY[c], "price": p, "spec": s, "source_name": SOURCES[src]["name"]}
+                for h, c, b, m, r, p, s, src in LAUNCHES if h <= since and allows(ctx.scope, "country", c)]
         return {"launches": rows, "count": len(rows), "as_of": iso(now), "source": "competitor-watch",
                 "note": "示例数据"}
 

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Moon, Sun, Users } from "lucide-react";
 import { post } from "../api";
 import { usePoll } from "../hooks";
-import { ActivityPill, Avatar, DeliverableCard, Markdown, TaskPill, timeAgo } from "../ui";
+import { ActivityPill, Avatar, countryOf, DeliverableCard, Markdown, MARKETS, TaskPill, timeAgo } from "../ui";
 import { KpiBar, KpiNumbers, RagPill } from "./Cockpit";
 
 const RATING: Record<string, [string, string]> = { good: ["good", "超出预期"], ok: ["", "符合预期"], behind: ["bad", "落后"] };
@@ -30,7 +30,8 @@ export default function Kpi({ id, me, team, go, onChange, switchUser }: any) {
     <>
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="row between">
-          <div className="row"><h1 style={{ margin: 0, fontSize: 20 }}>{k.title}</h1><RagPill rag={k.progress.rag} /></div>
+          <div className="row"><h1 style={{ margin: 0, fontSize: 20 }}>{k.title}</h1><RagPill rag={k.progress.rag} />
+            {k.market && <span className="tag">{k.market.name} · {k.market.currency} · {k.market.city}时间</span>}</div>
           <span className="muted small">下达 {k.created_by_name} · 负责人 <b>{k.owner_name || "待认领"}</b> · {k.start_date} ~ {k.end_date} · 第 {k.week_no} 周</span>
         </div>
         <KpiBar p={k.progress} />
@@ -292,7 +293,9 @@ function Channel({ k, byId, id, run }: any) {
 function Claim({ k, me, team, run, switchUser, onHired }: any) {
   const lib = usePoll<any[]>("/bot-templates", 0);
   const region = k.filter?.region?.[0] as string | undefined;
-  const fits = (b: any) => !region || !b.scope?.region || b.scope.region.includes(region);
+  const country = k.filter?.country?.[0] || "NG";
+  // 同一市场、区域不冲突的成员才能进小队
+  const fits = (b: any) => countryOf(b.scope) === country && (!region || !b.scope?.region || b.scope.region.includes(region));
   const members = team.filter((b: any) => b.state === "active" && b.channel === "内部" && b.template !== "chief-of-staff");
   const [step, setStep] = useState(1);
   const [sel, setSel] = useState<string[] | null>(null);
@@ -306,7 +309,7 @@ function Claim({ k, me, team, run, switchUser, onHired }: any) {
   const hire = (t: any) => run(async () => {
     setHiring(t.id);
     try {
-      const b = await post("/bots", { template: t.id, region });
+      const b = await post("/bots", { template: t.id, region, country: country === "NG" ? undefined : country });
       setSel([...chosen, b.id]); onHired?.(); lib.reload();
     } finally { setHiring(null); }
   });
@@ -353,7 +356,8 @@ function Claim({ k, me, team, run, switchUser, onHired }: any) {
               const ok = fits(b);
               return (
                 <span key={b.id} className={`mention ${chosen.includes(b.id) ? "on" : ""}`} style={ok ? undefined : { opacity: .45, cursor: "not-allowed" }}
-                  title={ok ? "" : `负责 ${b.scope.region.join("/")}，数据范围与本 KPI 不重合`} onClick={() => ok && toggle(b.id)}>
+                  title={ok ? "" : countryOf(b.scope) !== country ? `属于${MARKETS[countryOf(b.scope)]?.name}市场` : `负责 ${b.scope.region.join("/")}，数据范围与本 KPI 不重合`}
+                  onClick={() => ok && toggle(b.id)}>
                   <Avatar bot={b} size="sm" dot={false} />{b.display_name}
                 </span>
               );

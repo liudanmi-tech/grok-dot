@@ -12,7 +12,7 @@ from ...artifacts import ArtifactStore
 from ...config import LAGOS, Clock
 from ...policy import allows
 from ..registry import Tool, ToolContext, ToolRegistry
-from .sales_data import REGIONS, SKUS
+from .sales_data import CATALOG
 
 CATEGORIES = ["屏幕", "电池续航", "充电", "相机", "系统卡顿", "进水"]
 
@@ -27,20 +27,25 @@ class CarlcareTickets:
         as_of = self.clock.now().astimezone(LAGOS).date() - timedelta(days=1)
         half = days // 2
         agg: dict[tuple, list[int]] = defaultdict(lambda: [0, 0])  # [前半段, 后半段]
-        for sku, brand, model in SKUS:
-            if not allows(ctx.scope, "brand", brand):
+        for country, (skus, regions, _scale) in CATALOG.items():
+            if not allows(ctx.scope, "country", country):
                 continue
-            for region in REGIONS:
-                if not allows(ctx.scope, "region", region):
+            for sku, brand, model in skus:
+                if not allows(ctx.scope, "brand", brand):
                     continue
-                for cat in CATEGORIES:
-                    for i in range(days):
-                        d: date = as_of - timedelta(days=i)
-                        h = int(hashlib.md5(f"{sku}{region}{cat}{d}".encode()).hexdigest(), 16)
-                        n = 1 if h % 9 == 0 else 0
-                        if sku == "X6873" and cat == "充电" and i < 7:
-                            n += 2 if h % 3 else 1  # Infinix Hot 50 充电问题近 7 天上升
-                        agg[(model, brand, cat)][0 if i >= half else 1] += n
+                for region in regions:
+                    if not allows(ctx.scope, "region", region):
+                        continue
+                    for cat in CATEGORIES:
+                        for i in range(days):
+                            d: date = as_of - timedelta(days=i)
+                            h = int(hashlib.md5(f"{sku}{region}{cat}{d}".encode()).hexdigest(), 16)
+                            n = 1 if h % 9 == 0 else 0
+                            if sku == "X6873" and cat == "充电" and i < 7:
+                                n += 2 if h % 3 else 1  # Infinix Hot 50 充电问题近 7 天上升
+                            if sku == "HOT60I" and cat == "系统卡顿" and i < 7:
+                                n += 2 if h % 3 else 1  # 印尼：Hot 60i 系统卡顿投诉上升（影响口碑与成交）
+                            agg[(model, brand, cat)][0 if i >= half else 1] += n
         rows = []
         for (model, brand, cat), (prev, last) in agg.items():
             if prev + last == 0:

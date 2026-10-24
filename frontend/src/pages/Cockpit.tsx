@@ -2,11 +2,11 @@ import { useEffect, useState } from "react";
 import { Flag, Plus, Target, X } from "lucide-react";
 import { post } from "../api";
 import { usePoll } from "../hooks";
+import { MARKETS } from "../ui";
 import { ConvRow } from "./Chats";
 
 export const RAG: Record<string, [string, string]> = { green: ["good", "按节奏"], amber: ["warn", "略落后"], red: ["bad", "落后"] };
 const BRANDS = ["TECNO", "Infinix", "itel"];
-const REGIONS = ["Lagos", "North", "South-West", "South-East", "FCT"];
 
 export function RagPill({ rag }: { rag?: string | null }) {
   if (!rag) return <span className="pill">数据未出</span>;
@@ -134,7 +134,10 @@ function KpiCard({ k, go }: any) {
 export function NewKpi({ users, parents, onClose, onDone }: any) {
   const leads = users.filter((u: any) => u.roles.includes("supervisor"));
   const [f, setF] = useState<any>({ title: "拉各斯 TECNO 终端销量提升 15%", brand: ["TECNO"], region: ["Lagos"], uplift_pct: 15, weeks: 4,
-    owner: leads[0]?.id || "", parent_id: "" });
+    owner: leads[0]?.id || "", parent_id: "", country: "NG" });
+  const setMarket = (c: string) => setF({ ...f, country: c, region: [MARKETS[c].regions[0]],
+    title: c === "ID" ? "雅加达 Infinix 终端销量提升 20%" : "拉各斯 TECNO 终端销量提升 15%", brand: [c === "ID" ? "Infinix" : "TECNO"],
+    owner: (leads.find((u: any) => u.scope?.country?.includes(c)) || leads[0])?.id || "" });
   const [err, setErr] = useState<string | null>(null);
   const toggle = (k: string, v: string) => setF({ ...f, [k]: f[k].includes(v) ? f[k].filter((x: string) => x !== v) : [...f[k], v] });
   const submit = async () => {
@@ -150,7 +153,9 @@ export function NewKpi({ users, parents, onClose, onDone }: any) {
         <div className="row between"><b>设定 KPI</b><button className="btn ghost sm" onClick={onClose}><X size={14} /></button></div>
         <div className="field"><label>名称</label><input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></div>
         <div className="field"><label>品牌（不选 = 全部）</label><div className="row">{BRANDS.map((b) => <span key={b} className={`mention ${f.brand.includes(b) ? "on" : ""}`} onClick={() => toggle("brand", b)}>{b}</span>)}</div></div>
-        <div className="field"><label>区域（不选 = 全国）</label><div className="row">{REGIONS.map((r) => <span key={r} className={`mention ${f.region.includes(r) ? "on" : ""}`} onClick={() => toggle("region", r)}>{r}</span>)}</div></div>
+        <div className="field"><label>市场</label><div className="row">{Object.entries(MARKETS).map(([c, m]) => (
+          <span key={c} className={`mention ${f.country === c ? "on" : ""}`} onClick={() => setMarket(c)}>{m.name} · {m.currency}</span>))}</div></div>
+        <div className="field"><label>区域（不选 = 全国）</label><div className="row">{MARKETS[f.country].regions.map((r) => <span key={r} className={`mention ${f.region.includes(r) ? "on" : ""}`} onClick={() => toggle("region", r)}>{r}</span>)}</div></div>
         <div className="row">
           <div className="field" style={{ flex: 1 }}><label>终端销量提升 %（对比开始前 14 天日均）</label><input type="number" value={f.uplift_pct} onChange={(e) => setF({ ...f, uplift_pct: e.target.value })} /></div>
           <div className="field" style={{ flex: 1 }}><label>周期（周）</label><input type="number" value={f.weeks} onChange={(e) => setF({ ...f, weeks: e.target.value })} /></div>

@@ -1,0 +1,51 @@
+name: campaign-planner/adhoc-campaign
+version: 1.0.0
+owner: agent-ops-lagos
+bots: [campaign-planner]
+description: 大促档期活动方案：价格、分期、以旧换新、物料与节奏
+steps:
+  - id: calendar
+    title: 查看大促档期
+    type: tool
+    tool: retail-ops.query_calendar
+    args: { days: 120 }
+    est_minutes: 1
+  - id: financing
+    title: 拉取分期与以旧换新条款
+    type: tool
+    tool: retail-ops.query_financing
+    args: {}
+    est_minutes: 1
+  - id: sales
+    title: 查询近 14 天型号动销
+    type: tool
+    tool: sales-data.query_sell_through
+    args: { days: 14, group_by: [model, region] }
+    est_minutes: 1
+  - id: stock
+    title: 查询库存与可售天数
+    type: tool
+    tool: sales-data.query_inventory
+    args: {}
+    est_minutes: 1
+  - id: kb
+    title: 检索价格带与促销政策
+    type: tool
+    tool: knowledge.search
+    args: { query: "价格带 档期 促销 分期 以旧换新 {{goal}}", limit: 5 }
+    est_minutes: 1
+  - id: plan
+    title: 制定档期活动方案
+    type: llm
+    task_type: analyze
+    data_class: internal
+    output: true
+    est_minutes: 4
+    system: 你是{{market.name}}市场的活动策划。为最近的大促档期做一份活动方案：主推型号（结合动销与库存）、价格与让利组合（降价、赠品、分期贴息、以旧换新，遵守政策上限，币种 {{market.currency}}）、线上线下分工（门店、经销商、电商直播）、物料与时间节点、预期销量增量。只依据给定数据。
+    prompt: |
+      任务：{{goal}}
+      档期：{{steps.calendar.result|json}}
+      分期与以旧换新：{{steps.financing.result|json}}
+      动销：{{steps.sales.result|json}}
+      库存：{{steps.stock.result|json}}
+      政策：{{steps.kb.result|json}}

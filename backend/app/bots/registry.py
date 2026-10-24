@@ -157,25 +157,34 @@ class BotRegistry:
         return out
 
     # ---------- 招募与管理 ----------
-    def hire(self, template: str, *, actor: str, display_name: str | None = None, region: str | None = None) -> Bot:
+    def hire(self, template: str, *, actor: str, display_name: str | None = None, region: str | None = None,
+             country: str | None = None) -> Bot:
+        from ..config import DEFAULT_MARKET, MARKETS
         if template not in self.templates:
             raise KeyError(f"智能体库中没有岗位 {template}")
+        if country and country not in MARKETS:
+            raise ValueError(f"未知市场 {country}")
+        if country and region and region not in MARKETS[country]["regions"]:
+            raise ValueError(f"{MARKETS[country]['name']}没有区域 {region}")
         m = self.meta.get(template, {})
         existing = [b for b in self.list(include_retired=True) if b.template == template]
         if existing and not m.get("multi_instance", True):
             raise ValueError(f"{m.get('name', template)} 只能有一个在岗实例")
+        foreign = country and country != DEFAULT_MARKET
         bot_id = template
-        if self._row(bot_id):
-            suffix = re.sub(r"[^a-z0-9]+", "-", (region or "").lower()).strip("-") or str(len(existing) + 1)
+        if self._row(bot_id) or foreign:  # 其他市场的实例一律带后缀，ID 里看得出国家
+            base = "-".join(x for x in [country.lower() if foreign else "", region or ""] if x)
+            suffix = re.sub(r"[^a-z0-9]+", "-", base.lower()).strip("-") or str(len(existing) + 1)
             bot_id = f"{template}--{suffix}"
             n = 2
             while self._row(bot_id):
                 bot_id = f"{template}--{suffix}-{n}"
                 n += 1
-        name = display_name or (f"{m.get('name', template)} · {region}" if region else m.get("name"))
+        place = region or (MARKETS[country]["name"] if foreign else None)
+        name = display_name or (f"{m.get('name', template)} · {place}" if place else m.get("name"))
+        scope = {**({"country": [country]} if country else {}), **({"region": [region]} if region else {})}
         self._insert({"bot_id": bot_id, "template": template, "display_name": name,
-                      "scope": dumps({"region": [region]}) if region else None, "state": "active",
-                      "created_by": actor})
+                      "scope": dumps(scope) if scope else None, "state": "active", "created_by": actor})
         return self.get(bot_id)
 
     def set_state(self, bot_id: str, state: str) -> Bot:

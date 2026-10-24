@@ -73,3 +73,35 @@ templates:
     autonomy: 一级 · 价格政策类升级审批
     channel: WhatsApp
     phase: 第三阶段
+  - id: channel-expansion
+    name: 渠道拓展员
+    title: Channel Expansion Lead
+    color: "#0d9488"
+    summary: 盯门店覆盖与沉睡门店，排每周拜访路线，推动补货、陈列和样机到位，把动销门店数拉上去。
+    capabilities: [门店覆盖诊断, 沉睡门店激活, 拜访路线, 陈列检查]
+    autonomy: 一级 · 只读
+    phase: 第二阶段
+  - id: channel-incentive
+    name: 渠道激励策划
+    title: Channel Incentive Planner
+    color: "#b45309"
+    summary: 为经销商和驻店促销员设计阶梯激励与冲量奖励，测算 ROI；方案提交国家经理审批，不直接发放返利。
+    capabilities: [阶梯激励, 促销员冲量, ROI 测算, 审批流]
+    autonomy: 草稿 · 方案需审批
+    phase: 第二阶段
+  - id: ecommerce-live
+    name: 电商直播运营
+    title: E-commerce & Live Selling Ops
+    color: "#e11d48"
+    summary: 运营 Shopee、Tokopedia、TikTok Shop 等旗舰店：直播排期、脚本卖点、专享券，盯竞品直播价。
+    capabilities: [直播排期, 带货脚本, 专享券方案, 竞品比价]
+    autonomy: 草稿 · 发券需登记
+    phase: 第二阶段
+  - id: campaign-planner
+    name: 活动策划
+    title: Campaign Planner
+    color: "#7e22ce"
+    summary: 围绕斋月、11.11、12.12 等档期做活动方案：主推型号、让利组合、分期与以旧换新、线上线下节奏。
+    capabilities: [档期规划, 让利组合, 分期与以旧换新, 活动节奏]
+    autonomy: 草稿 · 价格类需审批
+    phase: 第二阶段

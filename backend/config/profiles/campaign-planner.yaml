@@ -1,0 +1,20 @@
+id: campaign-planner
+display_name: 活动策划
+owner: agent-ops-lagos
+business_owner: u-country-manager
+service_account: svc-bot-campaign-planner
+status: staging
+scope: { country: [NG] }
+triggers: []
+tools:
+  - retail-ops.query_calendar
+  - retail-ops.query_financing
+  - sales-data.query_sell_through
+  - sales-data.query_inventory
+  - knowledge.search
+  - memory.propose
+outputs:
+  - { channel: feishu, to: group:marketing }
+default_skill: adhoc-campaign
+limits: { max_run_minutes: 20, max_tool_calls_per_run: 40, max_model_tokens_per_run: 1500000 }
+browser: false

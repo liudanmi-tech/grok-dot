@@ -23,6 +23,17 @@ SKUS = [
     ("A70", "itel", "A70"),
 ]
 REGIONS = ["Lagos", "North", "South-West", "South-East", "FCT"]
+# 印尼演示数据：雅加达 Infinix Hot 60i 近 14 天下滑（竞品降价 + 10.10 大促后透支），GT 30 在西爪哇走强
+ID_SKUS = [
+    ("HOT60I", "Infinix", "Hot 60i"),
+    ("GT30", "Infinix", "GT 30"),
+    ("NOTE50", "Infinix", "Note 50"),
+    ("SPARK40", "TECNO", "Spark 40"),
+    ("POVA7", "TECNO", "POVA 7"),
+    ("A90", "itel", "A90"),
+]
+ID_REGIONS = ["Jakarta", "Jawa Barat", "Jawa Timur", "Sumatera Utara", "Sulawesi Selatan"]
+CATALOG = {"NG": (SKUS, REGIONS, 1), "ID": (ID_SKUS, ID_REGIONS, 2)}  # 国家 → (型号, 区域, 体量系数)
 HISTORY_DAYS = 70  # 覆盖 KPI 基线（开始前 14 天）+ 4 周周期 + 快进
 
 
@@ -43,19 +54,22 @@ class SalesData:
         # 业务动作对销量的影响（合成数据）：[{from, region?, brand?, sku?, pct, why}]，用于 KPI 演示
         self.effects: list[dict] = []
 
-    def _lift(self, sku: str, brand: str, region: str, d: date) -> float:
+    def _lift(self, sku: str, brand: str, region: str, d: date, country: str = "NG") -> float:
         pct = 0.0
         for e in self.effects:
             if d.isoformat() >= e["from"] and e.get("region") in (None, region) and e.get("brand") in (None, brand) \
-                    and e.get("sku") in (None, sku):
+                    and e.get("sku") in (None, sku) and e.get("country") in (None, country):
                 pct += e["pct"]
         return 1 + pct
 
-    def daily_units(self, *, region: list[str] | None, brand: list[str] | None, start: str, end: str) -> dict[str, int]:
+    def daily_units(self, *, region: list[str] | None, brand: list[str] | None, start: str, end: str,
+                    country: list[str] | None = None) -> dict[str, int]:
         """KPI 计算用：按日汇总终端销量（含 start、end），只到数据截止日（昨天）。"""
         out: dict[str, int] = defaultdict(int)
+        country = country or ["NG"]
         for r in self._series():
-            if start <= r["date"] <= end and (not region or r["region"] in region) and (not brand or r["brand"] in brand):
+            if r["country"] in country and start <= r["date"] <= end and (not region or r["region"] in region) \
+                    and (not brand or r["brand"] in brand):
                 out[r["date"]] += r["units"]
         return dict(out)
 
@@ -65,23 +79,28 @@ class SalesData:
     def _series(self) -> list[dict]:
         as_of = self._as_of()
         rows = []
-        for sku, brand, model in SKUS:
-            for region in REGIONS:
-                base = _base(sku, region)
-                for i in range(HISTORY_DAYS):
-                    d = as_of - timedelta(days=i)
-                    units = base * _noise(sku, region, d)
-                    if sku == "X6851" and region == "Lagos" and i < 14:
-                        units *= 1 - 0.035 * (14 - i)  # 近 14 天逐日下滑
-                    units *= self._lift(sku, brand, region, d)
-                    rows.append({"date": d.isoformat(), "sku": sku, "brand": brand, "model": model,
-                                 "region": region, "country": "NG", "units": int(round(units))})
+        for country, (skus, regions, scale) in CATALOG.items():
+            for sku, brand, model in skus:
+                for region in regions:
+                    base = _base(sku, region) * scale
+                    for i in range(HISTORY_DAYS):
+                        d = as_of - timedelta(days=i)
+                        units = base * _noise(sku, region, d)
+                        if sku == "X6851" and region == "Lagos" and i < 14:
+                            units *= 1 - 0.035 * (14 - i)  # 近 14 天逐日下滑
+                        if sku == "HOT60I" and region == "Jakarta" and i < 14:
+                            units *= 1 - 0.03 * (14 - i)   # 印尼：雅加达 Hot 60i 近 14 天下滑
+                        if sku == "GT30" and region == "Jawa Barat" and i < 10:
+                            units *= 1 + 0.025 * (10 - i)  # 印尼：西爪哇 GT 30 走强
+                        units *= self._lift(sku, brand, region, d, country)
+                        rows.append({"date": d.isoformat(), "sku": sku, "brand": brand, "model": model,
+                                     "region": region, "country": country, "units": int(round(units))})
         return rows
 
     def _scoped(self, scope: dict, args: dict) -> list[dict]:
         out = []
         for r in self._series():
-            if not (allows(scope, "country", "NG") and allows(scope, "region", r["region"])
+            if not (allows(scope, "country", r["country"]) and allows(scope, "region", r["region"])
                     and allows(scope, "brand", r["brand"])):
                 continue
             if args.get("region") and r["region"] not in args["region"]:

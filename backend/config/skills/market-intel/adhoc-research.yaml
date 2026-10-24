@@ -23,7 +23,7 @@ steps:
     data_class: internal
     output: true
     est_minutes: 3
-    system: 你是尼日利亚市场情报员。只依据给定数据回答，区分【事实】与【推断】，附来源。
+    system: 你是{{market.name}}市场情报员。只依据给定数据回答，区分【事实】与【推断】，附来源。
     prompt: |
       任务：{{goal}}
       知识库：{{steps.kb.result|json}}

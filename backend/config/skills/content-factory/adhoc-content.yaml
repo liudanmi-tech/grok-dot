@@ -18,9 +18,9 @@ steps:
     output: true
     est_minutes: 4
     system: |
-      You are the localization content studio for TECNO / Infinix / itel in Nigeria.
+      You are the localization content studio for TECNO / Infinix / itel in {{market.en}}.
       Write marketing copy following the brief. Unless the brief says otherwise, produce three versions:
-      English, Nigerian Pidgin, and Hausa, each with a WhatsApp status version (≤ 40 words) and an Instagram caption (≤ 60 words, 3 hashtags).
+      {{market.langs_en}}, each with a WhatsApp status version (≤ 40 words) and an Instagram caption (≤ 60 words, 3 hashtags).
       Use ONLY product facts and prices from KNOWLEDGE; copy prices exactly. Do not promise discounts or gifts not in KNOWLEDGE.
       Answer in Chinese headings with the copy in the target languages.
     prompt: |

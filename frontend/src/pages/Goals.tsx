@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { Box, LayoutGrid, Plus } from "lucide-react";
+import { Box, Globe2, LayoutGrid, Plus } from "lucide-react";
+import { post } from "../api";
 import { usePoll } from "../hooks";
+import { setDemoMarket } from "../ui";
 import { ConvRow } from "./Chats";
 import { KpiBar, NewKpi, RagPill } from "./Cockpit";
 import Kpi from "./Kpi";
@@ -24,6 +26,16 @@ export default function Goals({ id, me, team, go, onChange, switchUser, autoNew 
   const red = all.filter((k: any) => k.progress.rag === "red").length;
   const convs = today.data?.conversations || [];
 
+  // 选中的 KPI 属于哪个市场，演示时钟就切到哪个市场的当地时间
+  const selKpi = all.find((k: any) => k.kpi_id === selected);
+  useEffect(() => { if (selKpi?.market?.code) setDemoMarket(selKpi.market.code); }, [selKpi?.market?.code]);
+  const hasID = all.some((k: any) => k.market?.code === "ID");
+  const [seeding, setSeeding] = useState(false);
+  const seed = async () => {
+    setSeeding(true);
+    try { const r = await post("/demo/seed/indonesia"); reload(); onChange?.(); switchUser("u-lead-jakarta"); go(`goals/${r.kpi_id}`); }
+    catch (e: any) { alert(e.message); } finally { setSeeding(false); }
+  };
   const create = () => { if (canCreate) setOpen(true); else { go("goals/new"); switchUser("u-country-manager"); } };
 
   return (
@@ -40,6 +52,8 @@ export default function Goals({ id, me, team, go, onChange, switchUser, autoNew 
             <button className={mode === "2d" ? "on" : ""} onClick={() => setMode("2d")}><LayoutGrid size={13} />2D 看板</button>
             <button className={mode === "3d" ? "on" : ""} onClick={() => setMode("3d")}><Box size={13} />3D 办公室</button>
           </div>
+          {!hasID && <button className="btn" disabled={seeding} onClick={seed} title="招募雅加达小队（含 4 个新岗位）、印尼国家经理下达 12.12 档期 KPI、雅加达主管认领开工">
+            <Globe2 size={14} />{seeding ? "载入中…" : "载入印尼演示"}</button>}
           <button className="btn primary" onClick={create}><Plus size={14} />{canCreate ? "设定 KPI" : "以国家经理身份设定 KPI"}</button>
         </div>
       </div>
@@ -51,7 +65,8 @@ export default function Goals({ id, me, team, go, onChange, switchUser, autoNew 
           <div className="kpi-strip">
             {all.map((k: any) => (
               <div key={k.kpi_id} className={`kpi-tile ${k.kpi_id === selected ? "on" : ""} ${k.parent_id ? "child" : ""}`} onClick={() => go(`goals/${k.kpi_id}`)}>
-                <div className="row" style={{ flexWrap: "nowrap" }}><b className="ellipsis">{k.title}</b><span style={{ marginLeft: "auto" }}><RagPill rag={k.progress.rag} /></span></div>
+                <div className="row" style={{ flexWrap: "nowrap" }}><span className="tag">{k.market?.name || "尼日利亚"}</span><b className="ellipsis">{k.title}</b>
+                  <span style={{ marginLeft: "auto" }}><RagPill rag={k.progress.rag} /></span></div>
                 <KpiBar p={k.progress} />
                 <div className="row between small muted">
                   <span>{k.progress.actual.toLocaleString()} / {k.progress.target_total.toLocaleString()} 台 · 节奏 {k.progress.pace == null ? "—" : `${Math.round(k.progress.pace * 100)}%`}</span>

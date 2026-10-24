@@ -1,0 +1,49 @@
+name: channel-incentive/adhoc-incentive
+version: 1.0.0
+owner: agent-ops-lagos
+bots: [channel-incentive]
+description: 设计经销商 / 驻店促销员激励方案并提交审批（不直接发放返利）
+steps:
+  - id: sales
+    title: 查询近 14 天型号 × 区域动销
+    type: tool
+    tool: sales-data.query_sell_through
+    args: { days: 14, group_by: [region, model] }
+    est_minutes: 1
+  - id: coverage
+    title: 拉取门店覆盖
+    type: tool
+    tool: retail-ops.query_coverage
+    args: {}
+    est_minutes: 1
+  - id: kb
+    title: 检索促销与渠道政策
+    type: tool
+    tool: knowledge.search
+    args: { query: "促销 返利 促销员 奖励 政策 {{goal}}", limit: 4 }
+    est_minutes: 1
+  - id: plan
+    title: 设计激励方案
+    type: llm
+    task_type: analyze
+    data_class: internal
+    output: true
+    est_minutes: 3
+    system: 你是{{market.name}}市场的渠道激励策划。设计一个直接拉动目标型号动销的激励方案：对象（经销商 / 驻店促销员 / 门店）、阶梯规则、预算（{{market.currency}}）、周期、预期增量与 ROI 测算，并说明与政策的一致性。方案只用于提交审批，不得承诺未经批准的返利。只依据给定数据。
+    prompt: |
+      任务：{{goal}}
+      动销：{{steps.sales.result|json}}
+      门店覆盖：{{steps.coverage.result|json}}
+      政策：{{steps.kb.result|json}}
+  - id: submit
+    title: 提交激励方案审批
+    type: tool
+    tool: retail-ops.submit_incentive
+    approval_action: true
+    args:
+      title: "激励方案：{{steps.plan.result.card.title}}"
+      audience: "经销商与驻店促销员"
+      rules: "要点：{{steps.plan.result.card.headline}}"
+      budget: "见方案卡片"
+      period: "见方案卡片"
+    est_minutes: 1
