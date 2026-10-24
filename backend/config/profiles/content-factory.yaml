@@ -1,0 +1,18 @@
+id: content-factory
+display_name: 本地化内容工厂
+owner: agent-ops-lagos
+business_owner: u-brand-tecno
+service_account: svc-bot-content-factory
+status: staging
+scope: { country: [NG] }
+triggers: []
+tools:
+  - knowledge.search
+  - knowledge.get_approved_text
+  - notify.notify_internal
+  - memory.propose
+outputs:
+  - { channel: feishu, to: group:ng-brand }
+default_skill: adhoc-content
+limits: { max_run_minutes: 20, max_tool_calls_per_run: 40, max_model_tokens_per_run: 600000 }
+browser: false

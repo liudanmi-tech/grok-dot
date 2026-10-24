@@ -1,0 +1,18 @@
+id: promoter-coach
+display_name: 促销员教练
+owner: agent-ops-lagos
+business_owner: u-channel-lagos
+service_account: svc-bot-promoter-coach
+status: staging
+scope: { country: [NG] }
+triggers: []
+tools:
+  - knowledge.search
+  - knowledge.get_approved_text
+  - notify.notify_internal
+kb_visibility: [external]
+outputs:
+  - { channel: feishu, to: group:ng-promoters }
+default_skill: adhoc-coach
+limits: { max_run_minutes: 10, max_tool_calls_per_run: 20, max_model_tokens_per_run: 300000 }
+browser: false

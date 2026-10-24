@@ -101,7 +101,7 @@ budgets:                        # 月度上限（美元）
   alert_at: 0.8
 
 timeouts:
-  total_seconds: 120
+  total_seconds: 60
 circuit_breaker:
   window_seconds: 300
   error_rate: 0.2

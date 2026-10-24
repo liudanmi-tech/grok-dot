@@ -128,7 +128,7 @@ class SkillRunner:
         task = self.tasks.get(task_id)
         if task["status"] not in RUNNABLE:
             return
-        skill = self.skills.get(task["bot_id"], task["skill"])
+        skill = self.skills.get(self.bots.get(task["bot_id"]).template, task["skill"])
         if task["status"] in ("registered", "planning"):
             # 运行可复现（23.3）：记录本次使用的技能版本
             self.tasks.audit.append("task.skill", bot_id=task["bot_id"], trace_id=task["trace_id"],

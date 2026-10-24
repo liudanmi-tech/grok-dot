@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
+import { Activity, BookOpen, CheckSquare, Clock, Cpu, Inbox, LayoutDashboard, ListTodo, MessageCircle, Plus,
+  ScrollText, Shield, Sparkles } from "lucide-react";
 import { api, currentUser, setCurrentUser } from "./api";
 import { usePoll } from "./hooks";
-import Overview from "./pages/Overview";
+import { Avatar, useRoute } from "./ui";
+import CommandCenter from "./pages/CommandCenter";
+import Member from "./pages/Member";
+import Library from "./pages/Library";
 import Tasks from "./pages/Tasks";
 import Approvals from "./pages/Approvals";
 import Messages from "./pages/Messages";
@@ -11,48 +16,78 @@ import Routines from "./pages/Routines";
 import WhatsApp from "./pages/WhatsApp";
 import Settings from "./pages/Settings";
 
-const PAGES = [
-  ["whatsapp", "WhatsApp"], ["overview", "总览"], ["tasks", "任务"], ["approvals", "审批"], ["messages", "消息卡片"],
-  ["routines", "例程"], ["memory", "记忆"], ["audit", "审计"], ["settings", "模型设置"],
-] as const;
-type Page = (typeof PAGES)[number][0];
-
 export default function App() {
-  const [page, setPage] = useState<Page>("whatsapp");
+  const [route, go] = useRoute();
   const [user, setUser] = useState(currentUser());
   const [users, setUsers] = useState<any[]>([]);
-  const [focusTask, setFocusTask] = useState<string | null>(null);
-  const pending = usePoll<any[]>(`/approvals?state=pending,escalated&mine=true&u=${user}`, 5000);
+  const team = usePoll<any[]>(`/bots?u=${user}`, 3000);
+  const ov = usePoll<any>(`/overview?u=${user}`, 4000);
 
   useEffect(() => { api("/users").then(setUsers).catch(() => {}); }, []);
-
-  const switchUser = (id: string) => { setCurrentUser(id); setUser(id); };
-  const openTask = (id: string) => { setFocusTask(id); setPage("tasks"); };
+  const me = users.find((u) => u.id === user);
+  const page = route[0];
+  const Nav = ({ to, icon, label, count }: { to: string; icon: any; label: string; count?: number }) => (
+    <button className={`nav ${page === to ? "on" : ""}`} onClick={() => go(to)}>
+      {icon}<span>{label}</span>{count ? <span className="count">{count}</span> : null}
+    </button>
+  );
 
   return (
     <div className="layout">
-      <nav>
-        <h1>智能体平台 · 尼日利亚</h1>
-        {PAGES.map(([k, label]) => (
-          <button key={k} className={page === k ? "on" : ""} onClick={() => setPage(k)}>
-            {label}
-            {k === "approvals" && pending.data && pending.data.length > 0 && <span className="badge">{pending.data.length}</span>}
+      <aside className="side">
+        <div className="brand">
+          <div className="brand-mark">AO</div>
+          <div><b>Agent Org</b><span>尼日利亚销售 · 虚拟组织</span></div>
+        </div>
+        <Nav to="home" icon={<LayoutDashboard size={16} />} label="指挥中心" count={ov.data?.inbox_count} />
+
+        <div className="side-label"><span>我的团队 · {team.data?.length ?? 0}</span>
+          <button className="btn ghost sm" style={{ color: "var(--side-ink)", padding: 2 }} title="招募成员" onClick={() => go("library")}><Plus size={14} /></button>
+        </div>
+        {team.data?.map((b) => (
+          <button key={b.id} className={`nav ${page === "bot" && route[1] === b.id ? "on" : ""}`} onClick={() => go(`bot/${b.id}`)}>
+            <Avatar bot={b} size="sm" />
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.display_name}</span>
+            {b.attention + b.approvals > 0 ? <span className="count">{b.attention + b.approvals}</span>
+              : b.activity === "working" ? <span className="sub">工作中</span> : null}
           </button>
         ))}
-        <div style={{ marginTop: 24 }}>
-          <div className="muted">当前用户（POC 模拟登录）</div>
-          <select value={user} onChange={(e) => switchUser(e.target.value)} style={{ width: "100%", marginTop: 6 }}>
+        <Nav to="library" icon={<Sparkles size={16} />} label="招募成员" />
+
+        <div className="side-label"><span>工作</span></div>
+        <Nav to="tasks" icon={<ListTodo size={16} />} label="任务" />
+        <Nav to="approvals" icon={<CheckSquare size={16} />} label="审批" count={ov.data?.inbox?.approvals?.length} />
+        <Nav to="whatsapp" icon={<MessageCircle size={16} />} label="经销商渠道" />
+        <Nav to="messages" icon={<Inbox size={16} />} label="消息卡片" />
+
+        <div className="side-label"><span>治理</span></div>
+        <Nav to="routines" icon={<Clock size={16} />} label="例程" />
+        <Nav to="memory" icon={<BookOpen size={16} />} label="记忆" />
+        <Nav to="audit" icon={<ScrollText size={16} />} label="审计" />
+        <Nav to="settings" icon={<Cpu size={16} />} label="模型设置" />
+
+        <div className="side-foot">
+          <div className="row" style={{ marginBottom: 8, color: "#fff" }}>
+            <div className="av sm" style={{ background: "#334155" }}>{(me?.name || "我").slice(0, 1)}</div>
+            <div style={{ fontSize: 12.5, lineHeight: 1.3 }}>{me?.name || "—"}<div style={{ color: "var(--side-quiet)", fontSize: 11 }}>
+              <Shield size={10} /> {me?.roles?.filter((r: string) => r !== "requester").join(" · ") || "员工"}</div></div>
+          </div>
+          <select value={user} onChange={(e) => { setCurrentUser(e.target.value); setUser(e.target.value); }}>
             {users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
           </select>
+          <div style={{ color: "var(--side-quiet)", fontSize: 11, marginTop: 6 }}><Activity size={10} /> POC 模拟登录 · 审计链 {ov.data?.audit_ok ? "完整" : "…"}</div>
         </div>
-      </nav>
+      </aside>
+
       <main key={user}>
-        {page === "whatsapp" && <WhatsApp />}
-        {page === "overview" && <Overview openTask={openTask} />}
-        {page === "tasks" && <Tasks focus={focusTask} setFocus={setFocusTask} />}
+        {page === "home" && <CommandCenter me={me} team={team.data || []} ov={ov.data} reload={() => { team.reload(); ov.reload(); }} go={go} />}
+        {page === "bot" && route[1] && <Member id={route[1]} go={go} onChange={() => team.reload()} />}
+        {page === "library" && <Library go={go} onHired={() => team.reload()} />}
+        {page === "tasks" && <Tasks focus={route[1] || null} setFocus={(id) => go(id ? `tasks/${id}` : "tasks")} />}
         {page === "approvals" && <Approvals />}
+        {page === "whatsapp" && <WhatsApp />}
         {page === "messages" && <Messages />}
-        {page === "routines" && <Routines openTask={openTask} />}
+        {page === "routines" && <Routines openTask={(id) => go(`tasks/${id}`)} />}
         {page === "memory" && <Memory />}
         {page === "audit" && <Audit />}
         {page === "settings" && <Settings />}

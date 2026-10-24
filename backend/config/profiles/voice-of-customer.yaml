@@ -1,0 +1,20 @@
+id: voice-of-customer
+display_name: 用户声音分析员
+owner: agent-ops-lagos
+business_owner: u-country-manager
+service_account: svc-bot-voice-of-customer
+status: staging
+scope: { country: [NG] }
+triggers:
+  - { type: cron, expr: "0 6 * * 1", tz: Africa/Lagos, routine: weekly-voc, compensate_before: "12:00" }
+tools:
+  - carlcare-tickets.query_tickets
+  - knowledge.search
+  - notify.notify_internal
+  - bus.send
+  - memory.propose
+outputs:
+  - { channel: feishu, to: group:ng-quality }
+default_skill: adhoc-voc
+limits: { max_run_minutes: 20, max_tool_calls_per_run: 40, max_model_tokens_per_run: 1500000 }
+browser: false

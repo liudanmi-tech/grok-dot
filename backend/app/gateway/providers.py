@@ -1,8 +1,10 @@
 """模型提供方适配。mock 用于离线开发与测试；openai_compat 对接任意 OpenAI 兼容接口。"""
 from __future__ import annotations
 
+import json
 import os
 import re
+import time
 
 import httpx
 
@@ -18,6 +20,32 @@ def estimate_tokens(text: str) -> int:
     # 粗略估算：中文约 1 字 1 token，英文约 4 字符 1 token
     cjk = len(re.findall(r"[一-鿿]", text))
     return cjk + max(0, len(text) - cjk) // 4 + 1
+
+
+class _Resp:
+    def __init__(self, status_code: int, body: bytes):
+        self.status_code = status_code
+        self.text = body.decode("utf-8", "replace")
+
+    def json(self):
+        return json.loads(self.text)
+
+
+def post_with_deadline(url: str, *, headers: dict, payload: dict, timeout: float) -> _Resp:
+    """带总时长上限的 POST。
+
+    httpx 的 timeout 只限制单次读取间隔；OpenRouter 在非流式请求中会持续发送空白保活，
+    导致单次读取永不超时、请求无限挂起。这里按墙钟时间截止，超时即抛 TimeoutException。
+    """
+    deadline = time.monotonic() + timeout
+    per_read = httpx.Timeout(min(timeout, 30.0))
+    with httpx.Client(timeout=per_read) as c, c.stream("POST", url, headers=headers, json=payload) as r:
+        chunks = []
+        for chunk in r.iter_bytes():
+            chunks.append(chunk)
+            if time.monotonic() > deadline:
+                raise httpx.TimeoutException(f"超过总时长 {timeout:.0f}s")
+        return _Resp(r.status_code, b"".join(chunks))
 
 
 class MockProvider:
@@ -50,17 +78,20 @@ class OpenAICompatProvider:
             raise ProviderError(f"{entry['id']} 未配置密钥（{entry.get('api_key_env')}）", configured=False)
         base = os.environ.get(entry.get("base_url_env", ""), entry.get("base_url_default", "")).rstrip("/")
         try:
-            r = httpx.post(
+            r = post_with_deadline(
                 f"{base}/chat/completions",
                 headers={"Authorization": f"Bearer {key}"},
-                json={"model": entry.get("upstream_model", entry["id"]), "messages": messages},
+                payload={"model": entry.get("upstream_model", entry["id"]), "messages": messages},
                 timeout=timeout,
             )
         except httpx.HTTPError as e:
             raise ProviderError(f"{entry['id']} 请求失败：{e.__class__.__name__}") from e
         if r.status_code >= 400:
             raise ProviderError(f"{entry['id']} 返回 {r.status_code}", status=r.status_code)
-        data = r.json()
+        try:
+            data = r.json()
+        except ValueError as e:
+            raise ProviderError(f"{entry['id']} 返回了无法解析的内容", status=502) from e
         usage = data.get("usage") or {}
         content = data["choices"][0]["message"].get("content") or ""
         return {
@@ -85,11 +116,11 @@ class OpenRouterProvider:
             raise ProviderError(f"{entry['id']} 未配置 OpenRouter Key", configured=False)
         model = cfg.get("models", {}).get(entry.get("slot")) or entry.get("upstream_model")
         try:
-            r = httpx.post(
+            r = post_with_deadline(
                 f"{self.BASE}/chat/completions",
                 headers={"Authorization": f"Bearer {key}", "HTTP-Referer": "https://github.com/liudanmi-tech/grok-dot",
                          "X-Title": "grok-dot"},
-                json={"model": model, "messages": messages, "usage": {"include": True}},
+                payload={"model": model, "messages": messages, "usage": {"include": True}},
                 timeout=timeout,
             )
         except httpx.HTTPError as e:
@@ -100,7 +131,10 @@ class OpenRouterProvider:
             except ValueError:
                 msg = r.text[:200]
             raise ProviderError(f"{entry['id']}（{model}）返回 {r.status_code}：{msg[:200]}", status=r.status_code)
-        data = r.json()
+        try:
+            data = r.json()
+        except ValueError as e:
+            raise ProviderError(f"{entry['id']}（{model}）返回了无法解析的内容", status=502) from e
         if data.get("error"):
             raise ProviderError(f"{entry['id']}（{model}）错误：{str(data['error'])[:200]}", status=502)
         usage = data.get("usage") or {}

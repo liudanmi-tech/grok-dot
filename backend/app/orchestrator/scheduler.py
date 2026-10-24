@@ -52,7 +52,7 @@ class Scheduler:
         now = self.clock.now()
         started, skipped = [], []
         for bot in self.bots.list():
-            if bot.status not in ("production", "staging"):
+            if not bot.active or bot.status not in ("production", "staging"):
                 continue
             for trig in bot.triggers:
                 if trig.get("type") != "cron":
@@ -91,6 +91,8 @@ class Scheduler:
     def trigger(self, bot_id: str, routine: str) -> dict:
         """控制台手动触发（测试与补跑），同样留台账与审计。"""
         bot = self.bots.get(bot_id)
+        if not bot.active:
+            raise ValueError(f"{bot.display_name} 当前未在岗（{bot.state}）")
         if not any(t.get("routine") == routine for t in bot.triggers):
             raise KeyError(f"{bot_id} 没有例程 {routine}")
         now = self.clock.now()

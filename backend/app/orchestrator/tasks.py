@@ -88,15 +88,18 @@ class TaskService:
                requester_scope: dict | None = None, deadline: str | None = None, skill: str | None = None,
                parent_task_id: str | None = None) -> dict:
         bot = self.bots.get(bot_id)
+        if not bot.active:
+            raise TaskError(f"{bot.display_name} 当前未在岗（{bot.state}），不能派任务")
         now = iso(self.clock.now())
         budget = self.cfg.get("budget_usd", {})
         task_id = "tsk_" + uuid.uuid4().hex[:10]
+        tpl = bot.template or bot_id
         row = {
             "task_id": task_id, "parent_task_id": parent_task_id, "source": source, "requester": requester,
             # 固化下达人数据权限快照（11.6）
             "requester_scope": dumps(requester_scope) if requester_scope is not None else None,
             "bot_id": bot_id, "goal": goal, "deadline": deadline, "skill": skill or bot.default_skill,
-            "status": "registered", "budget_usd": budget.get(bot_id, budget.get("default", 2)),
+            "status": "registered", "budget_usd": budget.get(tpl, budget.get("default", 2)),
             "trace_id": "trc_" + uuid.uuid4().hex[:12], "card_id": f"task:{task_id}",
             "created_at": now, "updated_at": now, "last_activity_at": now,
         }

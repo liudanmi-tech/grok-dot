@@ -15,7 +15,10 @@ class BusDenied(Exception):
 
 
 class MessageBus:
-    def __init__(self, cfg: dict, db: DB, audit: AuditLog, clock: Clock, artifacts: ArtifactStore):
+    def __init__(self, cfg: dict, db: DB, audit: AuditLog, clock: Clock, artifacts: ArtifactStore,
+                 template_of=None, resolve=None):
+        self.template_of = template_of or (lambda b: b)
+        self.resolve = resolve or (lambda b: b)
         self.routes = cfg.get("routes", [])
         self.retention_days = cfg.get("retention_days", 30)
         self.unread_alert_days = cfg.get("unread_alert_days", 7)
@@ -25,11 +28,12 @@ class MessageBus:
         self.artifacts = artifacts
 
     def allowed(self, from_bot: str, to_bot: str, intent: str) -> bool:
-        return any(r["from"] == from_bot and r["to"] == to_bot and intent in r.get("intents", [])
-                   for r in self.routes)
+        f, t = self.template_of(from_bot), self.template_of(to_bot)
+        return any(r["from"] == f and r["to"] == t and intent in r.get("intents", []) for r in self.routes)
 
     def send(self, from_bot: str, to_bot: str, intent: str, payload_ref: str, *, trace_id: str | None,
              scope: dict | None) -> dict:
+        to_bot = self.resolve(to_bot) or to_bot
         if not self.allowed(from_bot, to_bot, intent):
             self.audit.append("policy.deny", bot_id=from_bot, trace_id=trace_id, kind="bus.not_whitelisted",
                               to_bot=to_bot, intent=intent)

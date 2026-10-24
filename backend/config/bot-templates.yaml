@@ -1,0 +1,66 @@
+# 智能体库：7 个岗位模板的展示信息（技术方案第 15 节）。工具、技能、例程见 profiles/ 与 skills/。
+team_seed: [market-intel, biz-review, price-sentinel, dealer-assistant]
+templates:
+  - id: market-intel
+    name: 市场情报员
+    title: Market Intelligence Analyst
+    color: "#2563eb"
+    summary: 每天 05:00 扫描竞品价格与新品，07:30 前把早报送到你手上；大幅调价自动转交价格哨兵。
+    capabilities: [竞品价格监测, 新品追踪, 价格带对比, 数据源健康度]
+    autonomy: 一级 · 只读
+    schedule: 每日 05:00
+    phase: 第一阶段
+  - id: biz-review
+    name: 经营复盘员
+    title: Business Review Analyst
+    color: "#7c3aed"
+    summary: 每周五汇总出货、动销、库存与各岗位转交的预警，给出变化最大的五项及原因假设。
+    capabilities: [经营周报, 品牌 × 区域拆解, 异常归因, 跨岗位汇总]
+    autonomy: 一级 · 只读
+    schedule: 每周五 16:00
+    phase: 第一阶段
+  - id: price-sentinel
+    name: 价格动销哨兵
+    title: Pricing & Sell-through Sentinel
+    color: "#dc2626"
+    summary: 盯住每个型号在每个区域的动销，发现连续下滑就写调价 / 促销建议，提交国家经理审批。
+    capabilities: [动销异常检测, 调价建议草稿, 审批流, 竞品联动]
+    autonomy: 一级 + 草稿 · 调价需审批
+    schedule: 每日 05:30
+    phase: 第二阶段
+  - id: content-factory
+    name: 本地化内容工厂
+    title: Localization Content Studio
+    color: "#db2777"
+    summary: 按你的简报产出英语、皮钦语、豪萨语等多语种营销文案；价格只引用已审定价格表。
+    capabilities: [多语种文案, 品牌规范检查, 渠道适配, 素材简报]
+    autonomy: 草稿 · 发布需品牌经理审批
+    phase: 第二阶段
+  - id: voice-of-customer
+    name: 用户声音分析员
+    title: Voice of Customer Analyst
+    color: "#ea580c"
+    summary: 每周分析 Carlcare 售后工单，按型号 × 问题类别排出 Top 问题与环比变化，转交复盘员。
+    capabilities: [售后工单分析, 问题聚类, 环比预警, 质量反馈]
+    autonomy: 一级 · 只读
+    schedule: 每周一 06:00
+    phase: 第二阶段
+  - id: dealer-assistant
+    name: 经销商助理
+    title: Dealer Assistant (WhatsApp)
+    color: "#16a34a"
+    summary: 在 WhatsApp 上回答经销商的价格、库存、保修问题；每条回复都经自动预审和渠道经理审批。
+    capabilities: [WhatsApp 问答, 五种本地语言, 本店库存, 转人工]
+    autonomy: 二级 · 对外发送需审批
+    channel: WhatsApp
+    phase: 第三阶段
+    multi_instance: false
+  - id: promoter-coach
+    name: 促销员教练
+    title: Promoter Coach
+    color: "#0891b2"
+    summary: 给门店促销员讲卖点、教话术、答疑；涉及价格和政策时只引用审定文本并升级审批。
+    capabilities: [卖点培训, 竞品话术, 异议处理, 日报汇总]
+    autonomy: 一级 · 价格政策类升级审批
+    channel: WhatsApp
+    phase: 第三阶段

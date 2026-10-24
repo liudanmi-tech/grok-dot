@@ -26,6 +26,7 @@ class GatewayError(Exception):
 class ModelGateway:
     def __init__(self, cfg: dict, db: DB, audit: AuditLog, clock: Clock):
         self.cfg = cfg
+        self.template_of = lambda bot_id: bot_id.split("--")[0]
         self.db = db
         self.audit = audit
         self.clock = clock
@@ -45,6 +46,7 @@ class ModelGateway:
 
     # ---------- 路由 ----------
     def primary(self, bot_id: str, task_type: str | None, language: str | None) -> str:
+        bot_id = self.template_of(bot_id)
         for route in self.cfg.get("routes", []):
             when = route.get("when", {})
             if all({"task": task_type, "language": language, "bot": bot_id}.get(k) == v for k, v in when.items()):
@@ -68,13 +70,14 @@ class ModelGateway:
 
     def plan(self, bot_id: str, task_type: str | None, language: str | None, data_class: str) -> list[str]:
         budgets = self.cfg.get("budgets", {})
-        if bot_id not in PROTECTED_BOTS and self.month_spend() >= budgets.get("global", float("inf")):
+        tpl = self.template_of(bot_id)
+        if tpl not in PROTECTED_BOTS and self.month_spend() >= budgets.get("global", float("inf")):
             raise BudgetExceeded("全局月度预算已用尽，非对外岗位暂停调用")
         models = self.chain(self.primary(bot_id, task_type, language))
         models = [m for m in models if data_class in self.catalog[m].get("allowed_data", [])]
         if not models:
             raise GatewayError(f"没有允许处理 {data_class} 级数据的模型")
-        bot_budget = budgets.get(bot_id, budgets.get("default"))
+        bot_budget = budgets.get(bot_id, budgets.get(tpl, budgets.get("default")))
         if bot_budget is not None and self.month_spend(bot_id) >= bot_budget:
             economy = [m for m in models if self.catalog[m]["tier"] == "economy"]
             models = economy or models[-1:]
@@ -108,7 +111,7 @@ class ModelGateway:
             clean.append({**m, "content": text})
             for k, v in hits.items():
                 total_hits[k] = total_hits.get(k, 0) + v
-        if total_hits and bot_id not in PROTECTED_BOTS:
+        if total_hits and self.template_of(bot_id) not in PROTECTED_BOTS:
             # 内部岗位本不应接触个人信息
             self.audit.append("alert", bot_id=bot_id, trace_id=trace_id, level="P2",
                               kind="pii.in_internal_bot", hits=total_hits)
@@ -153,7 +156,7 @@ class ModelGateway:
 
     def _check_budget_alert(self, bot_id: str) -> None:
         budgets = self.cfg.get("budgets", {})
-        limit = budgets.get(bot_id, budgets.get("default"))
+        limit = budgets.get(bot_id, budgets.get(self.template_of(bot_id), budgets.get("default")))
         if not limit:
             return
         ratio = self.month_spend(bot_id) / limit

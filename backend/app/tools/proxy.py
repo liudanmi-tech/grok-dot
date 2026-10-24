@@ -41,6 +41,8 @@ class ToolProxy:
         bot = self.bots.get(bot_id)
         audit_base = {"bot_id": bot_id, "trace_id": trace_id, "tool": tool_name, "task_id": task_id}
         try:
+            if not bot.active:
+                raise ToolError("SCOPE_DENIED", f"{bot.display_name} 当前未在岗（{bot.state}）")
             if tool_name not in bot.tools:
                 raise ToolError("SCOPE_DENIED", f"{bot_id} 未被授权使用 {tool_name}")
             tool = self.tools.get(tool_name)

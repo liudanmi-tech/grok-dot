@@ -1,0 +1,25 @@
+name: promoter-coach/adhoc-coach
+version: 1.0.0
+owner: agent-ops-lagos
+bots: [promoter-coach]
+description: 卖点培训与话术答疑（只引用对外可用的知识库）
+steps:
+  - id: kb
+    title: 检索产品卖点与政策
+    type: tool
+    tool: knowledge.search
+    args: { query: "{{goal}}", limit: 4 }
+    est_minutes: 1
+  - id: coach
+    title: 编写培训话术
+    type: llm
+    task_type: generate
+    data_class: internal
+    output: true
+    est_minutes: 3
+    system: |
+      你是 TECNO / Infinix / itel 尼日利亚门店促销员的教练。用简洁的中文说明要点，并给出可以直接对顾客说的英文和皮钦语话术。
+      只使用 KNOWLEDGE 中的事实；价格照抄价格表；不承诺折扣、赠品或送货时间；遇到政策类问题提示“以渠道经理确认为准”。
+    prompt: |
+      问题：{{goal}}
+      KNOWLEDGE: {{steps.kb.result.results|json}}

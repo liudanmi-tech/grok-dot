@@ -1,0 +1,33 @@
+name: voice-of-customer/weekly-voc
+version: 1.0.0
+owner: agent-ops-lagos
+bots: [voice-of-customer]
+description: 每周一分析上周 Carlcare 工单，排出 Top 问题并转交经营复盘员
+steps:
+  - id: tickets
+    title: 查询近 14 天售后工单
+    type: tool
+    tool: carlcare-tickets.query_tickets
+    args: { days: 14 }
+    est_minutes: 1
+  - id: report
+    title: 分析 Top 问题与环比变化
+    type: llm
+    task_type: analyze
+    data_class: internal
+    output: true
+    est_minutes: 3
+    system: 你是用户声音分析员。按型号 × 问题类别列出工单量 Top 5，标注环比变化，给出可能原因（标注【推断】）和建议的跟进部门。只依据给定数据。
+    prompt: "工单统计：{{steps.tickets.result|json}}"
+  - id: send
+    title: 发送问题清单
+    type: tool
+    tool: notify.notify_internal
+    args: { title: "售后问题周报 {{today}}", body: "{{steps.report.result.content}}" }
+    est_minutes: 1
+  - id: handoff
+    title: 转交经营复盘员
+    type: tool
+    tool: bus.send
+    args: { to_bot: biz-review, intent: aftersales_issue_list, payload_ref: "{{steps.tickets.result.ref}}" }
+    est_minutes: 1

@@ -20,7 +20,8 @@ from .orchestrator.scheduler import Scheduler
 from .orchestrator.tasks import TaskService
 from .policy import PolicyEngine
 from .channels.whatsapp import LANG_NAMES, WhatsAppGateway
-from .tools.connectors import competitor_watch, dealer_msg, knowledge, platform_tools, pricing_draft, sales_data
+from .tools.connectors import (carlcare_tickets, competitor_watch, dealer_msg, knowledge, platform_tools,
+                               pricing_draft, sales_data)
 from .tools.proxy import ToolProxy
 from .tools.registry import ToolRegistry
 
@@ -44,12 +45,15 @@ class Platform:
         })
         self.outbox = Outbox(self.db, self.clock)
         self.artifacts = ArtifactStore(self.db, self.clock)
-        self.bots = BotRegistry(config_dir / "profiles")
+        meta = load_yaml(config_dir / "bot-templates.yaml") if (config_dir / "bot-templates.yaml").exists() else {}
+        self.bots = BotRegistry(config_dir / "profiles", self.db, config_dir / "bot-templates.yaml",
+                                seed=meta.get("team_seed"), clock=self.clock)
         self.skills = SkillLibrary(config_dir / "skills")
         self.memory = MemoryService(self.db, self.audit, self.clock)
         self.gateway = ModelGateway(routing_cfg, self.db, self.audit, self.clock)
+        self.gateway.template_of = self.bots.template_of
         self.bus = MessageBus(load_yaml(config_dir / "bus-whitelist.yaml"), self.db, self.audit, self.clock,
-                              self.artifacts)
+                              self.artifacts, template_of=self.bots.template_of, resolve=self.bots.resolve)
         self.approvals = ApprovalService(self.db, self.audit, self.clock, self.policy, self.outbox)
 
         # 工具与连接器
@@ -62,6 +66,7 @@ class Platform:
         sales_data.register(self.tools, self.sales)
         self.pricing = pricing_draft.PricingDrafts(self.db, self.clock, self.artifacts, self.kb)
         pricing_draft.register(self.tools, self.pricing)
+        carlcare_tickets.register(self.tools, carlcare_tickets.CarlcareTickets(self.clock, self.artifacts))
         platform_tools.register(self.tools, outbox=self.outbox, bus=self.bus, memory=self.memory,
                                 namespace_of=lambda b: self.bots.get(b).namespace)
         self.whatsapp = WhatsAppGateway(self.db, self.audit, self.clock,

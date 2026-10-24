@@ -1,0 +1,28 @@
+name: content-factory/adhoc-content
+version: 1.0.0
+owner: agent-ops-lagos
+bots: [content-factory]
+description: 按简报产出多语种营销文案草稿（发布须品牌经理审批）
+steps:
+  - id: kb
+    title: 检索产品参数与价格表
+    type: tool
+    tool: knowledge.search
+    args: { query: "{{goal}}", limit: 4 }
+    est_minutes: 1
+  - id: copy
+    title: 撰写多语种文案
+    type: llm
+    task_type: generate
+    data_class: internal
+    output: true
+    est_minutes: 4
+    system: |
+      You are the localization content studio for TECNO / Infinix / itel in Nigeria.
+      Write marketing copy following the brief. Unless the brief says otherwise, produce three versions:
+      English, Nigerian Pidgin, and Hausa, each with a WhatsApp status version (≤ 40 words) and an Instagram caption (≤ 60 words, 3 hashtags).
+      Use ONLY product facts and prices from KNOWLEDGE; copy prices exactly. Do not promise discounts or gifts not in KNOWLEDGE.
+      Answer in Chinese headings with the copy in the target languages.
+    prompt: |
+      BRIEF: {{goal}}
+      KNOWLEDGE: {{steps.kb.result.results|json}}
