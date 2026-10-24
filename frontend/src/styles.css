@@ -314,3 +314,30 @@ main.wide { max-width: none; }
   transform: rotateX(45deg); animation: bob 2.4s ease-in-out infinite; }
 @keyframes bob { 50% { transform: rotateX(45deg) translateY(-6px); } }
 .seg.mini button { padding: 2px 8px; font-size: 12px; }
+
+/* 3D 办公室 */
+.o3-wrap { position: relative; height: calc(100vh - 250px); min-height: 560px; border-radius: 16px; overflow: hidden; border: 1px solid var(--line); background: #eef2f7; }
+.o3-hud { position: absolute; z-index: 30; top: 10px; left: 12px; right: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  background: rgba(255,255,255,.88); backdrop-filter: blur(6px); border: 1px solid #e5e7eb; border-radius: 10px; padding: 6px 12px; font-size: 13px; color: #0f172a; }
+.o3-tag { font: 12px/1.35 -apple-system, "PingFang SC", sans-serif; background: rgba(255,255,255,.95); color: #0f172a; border: 1px solid #e2e8f0;
+  border-radius: 10px; padding: 4px 8px; white-space: nowrap; box-shadow: 0 2px 8px rgba(15,23,42,.12); cursor: pointer; user-select: none; }
+.o3-tag.working { border-color: #60a5fa; } .o3-tag.needs_you { border-color: #f59e0b; } .o3-tag.off_duty { color: #64748b; background: rgba(241,245,249,.95); }
+.o3-tag.lead { background: #0f172a; color: #fff; border-color: #0f172a; }
+.o3-name { display: flex; gap: 5px; align-items: center; font-weight: 600; }
+.o3-av { width: 18px; height: 18px; border-radius: 5px; color: #fff; font-size: 9px; display: inline-flex; align-items: center; justify-content: center; }
+.o3-task { color: #475569; font-size: 11px; max-width: 170px; overflow: hidden; text-overflow: ellipsis; }
+.o3-mini { height: 3px; background: #e2e8f0; border-radius: 3px; margin-top: 3px; overflow: hidden; } .o3-mini i { display: block; height: 100%; background: #3b82f6; }
+.o3-bubble { position: absolute; top: -26px; left: 50%; transform: translateX(-50%); background: #f59e0b; color: #fff; font-weight: 700; padding: 2px 8px;
+  border-radius: 999px; font-size: 11px; animation: o3bob 1.2s ease-in-out infinite; }
+@keyframes o3bob { 50% { transform: translateX(-50%) translateY(-4px); } }
+.o3-board { width: 360px; background: #fff; border: 6px solid #334155; border-radius: 6px; padding: 12px 14px; font: 13px/1.4 -apple-system, "PingFang SC", sans-serif; color: #0f172a; }
+.o3-board-title { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+.o3-big { font-size: 26px; font-weight: 800; } .o3-big span { font-size: 13px; color: #64748b; font-weight: 500; }
+.o3-bar { position: relative; height: 10px; background: #e2e8f0; border-radius: 6px; margin: 8px 0; }
+.o3-bar i { display: block; height: 100%; border-radius: 6px; background: #4f46e5; } .o3-bar i.green { background: #059669; } .o3-bar i.amber { background: #d97706; } .o3-bar i.red { background: #dc2626; }
+.o3-bar b { position: absolute; top: -4px; width: 2px; height: 18px; background: #0f172a; }
+.o3-row { display: flex; justify-content: space-between; color: #475569; font-size: 12px; }
+.o3-screen { width: 340px; background: #0f172a; color: #e2e8f0; border: 6px solid #1e293b; border-radius: 6px; padding: 10px 12px; font: 12px/1.45 -apple-system, "PingFang SC", sans-serif; }
+.o3-screen-title { color: #93c5fd; font-weight: 700; margin-bottom: 4px; }
+.o3-msg { border-top: 1px solid #1e293b; padding: 3px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .o3-msg b { color: #fbbf24; margin-right: 6px; }
+.o3-sign { background: #0f172a; color: #fff; padding: 4px 10px; border-radius: 6px; font: 600 13px -apple-system, "PingFang SC", sans-serif; }

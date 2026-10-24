@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { Box, Globe2, LayoutGrid, Plus } from "lucide-react";
 import { post } from "../api";
 import { usePoll } from "../hooks";
@@ -6,6 +6,8 @@ import { setDemoMarket } from "../ui";
 import { ConvRow } from "./Chats";
 import { KpiBar, NewKpi, RagPill } from "./Cockpit";
 import Kpi from "./Kpi";
+
+const Office3D = lazy(() => import("./Office3D"));  // three.js 只在切到 3D 时加载
 
 // 目标：驾驶舱总览 + 单个 KPI 详情合在一个页面；右上角切换 2D 看板 / 3D 办公室
 export default function Goals({ id, me, team, go, onChange, switchUser, autoNew }: any) {
@@ -81,7 +83,8 @@ export default function Goals({ id, me, team, go, onChange, switchUser, autoNew 
             ))}
           </div>
 
-          {mode === "3d" ? <Office3DPlaceholder /> : (
+          {mode === "3d" ? (selected ? <Suspense fallback={<div className="card muted">加载 3D 办公室…</div>}><Office3D key={selected} kpiId={selected} go={go} /></Suspense>
+            : <Office3DPlaceholder />) : (
             <>
               <div className="card" style={{ marginBottom: 14 }}>
                 <div className="card-head">
