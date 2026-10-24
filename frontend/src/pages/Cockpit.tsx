@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Flag, Plus, Target, X } from "lucide-react";
 import { post } from "../api";
 import { usePoll } from "../hooks";
@@ -34,10 +34,11 @@ export function KpiNumbers({ p }: { p: any }) {
   );
 }
 
-export default function Cockpit({ me, go, onChange }: any) {
+export default function Cockpit({ me, go, onChange, switchUser, autoNew }: any) {
   const { data, reload } = usePoll<any[]>("/kpis", 4000);
   const users = usePoll<any[]>("/users", 0);
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(!!autoNew);
+  useEffect(() => { if (autoNew) setOpen(true); }, [autoNew]);
   const canCreate = me?.roles?.some((r: string) => ["country_manager", "supervisor"].includes(r));
   const all = (data || []).flatMap((k: any) => [k, ...(k.children || [])]);
   const reports = all.filter((k: any) => k.last_report).map((k: any) => ({ ...k.last_report, kpi_id: k.kpi_id }));
@@ -50,7 +51,8 @@ export default function Cockpit({ me, go, onChange }: any) {
           <h1>目标驾驶舱</h1>
           <p>领导设 KPI → 主管认领并组建 bot 小队 → 每天晨会派活、晚会复盘 → 日报自动上报。进度全部来自销量数据，不用逐个问人。</p>
         </div>
-        {canCreate && <button className="btn primary" onClick={() => setOpen(true)}><Plus size={14} />设定 KPI</button>}
+        {canCreate ? <button className="btn primary" onClick={() => setOpen(true)}><Plus size={14} />设定 KPI</button>
+          : <button className="btn primary" onClick={() => { go("cockpit/new"); switchUser("u-country-manager"); }}><Plus size={14} />以国家经理身份设定 KPI</button>}
       </div>
 
       <div className="grid g4" style={{ marginBottom: 16 }}>
@@ -62,7 +64,7 @@ export default function Cockpit({ me, go, onChange }: any) {
 
       <div className="split">
         <div className="stack">
-          {!all.length && <div className="card muted">还没有 KPI。{canCreate ? "点右上角「设定 KPI」开始。" : "等领导下达。"}</div>}
+          {!all.length && <div className="card muted">还没有 KPI。{canCreate ? "点右上角「设定 KPI」开始。" : `你当前是 ${me?.name || "—"}，没有下达 KPI 的权限；点右上角切换为国家经理。`}</div>}
           {(data || []).map((k: any) => (
             <div key={k.kpi_id} className="card">
               <KpiCard k={k} go={go} />
@@ -89,7 +91,7 @@ export default function Cockpit({ me, go, onChange }: any) {
           ))}
         </div>
       </div>
-      {open && <NewKpi users={users.data || []} parents={data || []} onClose={() => setOpen(false)}
+      {open && <NewKpi users={users.data || []} parents={data || []} onClose={() => { setOpen(false); if (autoNew) go("cockpit"); }}
         onDone={(k: any) => { setOpen(false); reload(); onChange?.(); go(`kpi/${k.kpi_id}`); }} />}
     </>
   );
