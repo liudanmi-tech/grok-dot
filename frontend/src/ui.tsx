@@ -154,7 +154,8 @@ export function Markdown({ text }: { text: string }) {
 }
 
 // ---------- 交付卡片：服务端渲染的独立 HTML，沙箱 iframe 嵌入（无脚本），高度随内容 ----------
-export function DeliverableCard({ taskId, index, fallback, fold = true }: { taskId: string; index: number; fallback?: string; fold?: boolean }) {
+export function DeliverableCard({ taskId, index, fallback, fold = true, onAction }: { taskId: string; index: number; fallback?: string; fold?: boolean;
+  onAction?: (a: { text: string; owner: string; due: string }) => void }) {
   const [doc, setDoc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [h, setH] = useState(240);
@@ -171,6 +172,12 @@ export function DeliverableCard({ taskId, index, fallback, fold = true }: { task
     const d = el?.contentDocument;
     if (!d?.body) return;
     const measure = () => setH(Math.max(120, d.documentElement.scrollHeight + 2));
+    if (onAction) {  // 卡片无脚本；由外层页面挂点击：「下一步」→ 在对话里继续推进
+      d.body.classList.add("interactive");
+      d.querySelectorAll<HTMLElement>("[data-act]").forEach((el) => {
+        el.onclick = () => onAction({ text: el.dataset.text || "", owner: el.dataset.owner || "", due: el.dataset.due || "" });
+      });
+    }
     measure();
     new ResizeObserver(measure).observe(d.body);
   };

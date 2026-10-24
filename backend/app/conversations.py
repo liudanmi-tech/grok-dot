@@ -154,11 +154,12 @@ def todos(p, t: dict, kids: list[dict]) -> list[dict]:
     """待办：分工进度 + 交付卡片里的下一步。"""
     out = [{"kind": "assignment", "bot_id": k["bot_id"], "text": k["goal"], "status": k["status"],
             "status_label": k["status_label"], "task_id": k["task_id"]} for k in kids]
+    sent = {f.get("action") for f in (t["context"] or {}).get("followups", []) if f.get("action")}
     for src in [t, *kids]:
         for o in src["outputs"]:
             for a in (o.get("card") or {}).get("actions", []):
                 out.append({"kind": "action", "bot_id": src["bot_id"], "owner": a.get("owner"), "text": a.get("action"),
-                            "due": a.get("due"), "status": "open"})
+                            "due": a.get("due"), "status": "dispatched" if a.get("action") in sent else "open"})
     return out
 
 

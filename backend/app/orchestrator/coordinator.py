@@ -270,7 +270,8 @@ class Coordinator:
             pass
 
     # ---------- 追加（群聊里 @ 成员，或交给总调度再分工） ----------
-    def followup(self, task_id: str, *, actor_id: str, text: str, bot_id: str | None = None) -> dict:
+    def followup(self, task_id: str, *, actor_id: str, text: str, bot_id: str | None = None,
+                 from_action: str | None = None) -> dict:
         task = self.tasks.get(task_id)
         if self.bots.template_of(task["bot_id"]) != TEMPLATE:
             raise TaskError("只有总调度的任务支持追加分工")
@@ -281,9 +282,14 @@ class Coordinator:
         if not text.strip():
             raise TaskError("请写明要追加什么")
         self.tasks.audit.append("task.followup", bot_id=task["bot_id"], trace_id=task["trace_id"], task_id=task_id,
-                                actor=actor_id, text=text.strip()[:500], to_bot=bot_id)
+                                actor=actor_id, text=text.strip()[:500], to_bot=bot_id, from_action=from_action)
         with self._locks.setdefault(task_id, threading.RLock()):
-            self._plan(task, task["context"] or {}, text.strip(), followup=True, only=bot_id)
+            ctx = task["context"] or {}
+            self._plan(task, ctx, text.strip(), followup=True, only=bot_id)
+            if from_action:  # 记下来源，待办里标为「已派发」
+                ctx = self.tasks.get(task_id)["context"]
+                ctx["followups"][-1]["action"] = from_action
+                self.tasks.save_context(task_id, ctx)
         return self.tasks.get(task_id)
 
 

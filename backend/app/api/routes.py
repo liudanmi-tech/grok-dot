@@ -324,11 +324,13 @@ def task_action(task_id: str, body: ActionIn, p=Depends(P), user=Depends(current
 class FollowupIn(BaseModel):
     text: str
     bot_id: str | None = None   # 群聊里 @ 某成员；为空则交给总调度再分工
+    from_action: str | None = None  # 由交付卡片里的「下一步」发起
 
 
 @router.post("/tasks/{task_id}/followup")
 def followup(task_id: str, body: FollowupIn, p=Depends(P), user=Depends(current_user)):
-    return guard(p.coordinator.followup, task_id, actor_id=user["id"], text=body.text, bot_id=body.bot_id)
+    return guard(p.coordinator.followup, task_id, actor_id=user["id"], text=body.text, bot_id=body.bot_id,
+                 from_action=body.from_action)
 
 
 # ---------- 目标与节奏：KPI、周分解、晨会、晚会、团队群 ----------

@@ -11,6 +11,7 @@ export default function Chat({ id, team, users, go }: any) {
   const [sel, setSel] = useState<{ task_id: string; index: number } | null>(null);
   const [tab, setTab] = useState<"deliver" | "progress" | "context">("deliver");
   const [err, setErr] = useState<string | null>(null);
+  const [draft, setDraft] = useState<any>(null);
   const end = useRef<HTMLDivElement>(null);
   const n = d?.messages?.length || 0;
   useEffect(() => { end.current?.scrollIntoView({ block: "nearest" }); }, [n]);
@@ -28,6 +29,14 @@ export default function Chat({ id, team, users, go }: any) {
     try { await fn(); reload(); appr.reload(); } catch (e: any) { setErr(e.message); }
   };
   const open = (task_id: string, index: number) => { setSel({ task_id, index }); setTab("deliver"); };
+  // 交付卡片 / 待办里的「下一步」→ 预填到群聊输入框；负责人是团队成员就自动 @
+  const pushAction = (a: { text: string; owner?: string; due?: string }) => {
+    const owner = a.owner || "";
+    const member = team.find((b: any) => b.channel === "内部" && b.template !== "chief-of-staff"
+      && owner && (owner.includes(b.display_name.split(" · ")[0]) || b.display_name.includes(owner)));
+    setDraft({ text: `请推进：${a.text}${owner ? `（负责：${owner}` : ""}${a.due ? `${owner ? "，" : "（"}时间：${a.due}` : ""}${owner || a.due ? "）" : ""}`,
+      to: member?.id || null, action: a.text, n: Date.now() });
+  };
 
   return (
     <div className="chat-page">
@@ -51,7 +60,7 @@ export default function Chat({ id, team, users, go }: any) {
             <div ref={end} />
           </div>
           {err && <div className="err">{err}</div>}
-          <Composer t={t} team={team} run={run} />
+          <Composer t={t} team={team} run={run} draft={draft} />
         </div>
 
         <div className="chat-right">
@@ -73,12 +82,12 @@ export default function Chat({ id, team, users, go }: any) {
                 </div>
                 {current && (() => {
                   const x = d.deliverables.find((y: any) => y.task_id === current.task_id && y.index === current.index);
-                  return x?.has_card ? <DeliverableCard key={x.task_id + x.index} taskId={x.task_id} index={x.index} fallback={x.content} fold={false} />
+                  return x?.has_card ? <DeliverableCard key={x.task_id + x.index} taskId={x.task_id} index={x.index} fallback={x.content} fold={false} onAction={pushAction} />
                     : x && <div className="output rich"><Markdown text={x.content} /></div>;
                 })()}
               </>
             ))}
-          {tab === "progress" && <Progress d={d} byId={byId} go={go} />}
+          {tab === "progress" && <Progress d={d} byId={byId} go={go} pushAction={pushAction} />}
           {tab === "context" && <Context d={d} byId={byId} uname={uname} go={go} />}
         </div>
       </div>
@@ -167,16 +176,23 @@ function ApprovalInline({ a, text, run }: any) {
   );
 }
 
-function Composer({ t, team, run }: any) {
+function Composer({ t, team, run, draft }: any) {
   const [text, setText] = useState("");
   const [to, setTo] = useState<string | null>(null);
+  const [action, setAction] = useState<string | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!draft) return;
+    setText(draft.text); setTo(draft.to); setAction(draft.action);
+    setTimeout(() => input.current?.focus(), 0);
+  }, [draft]);
   const lead = team.find((b: any) => b.id === t.bot_id)?.template === "chief-of-staff";
   const closed = ["cancelled", "failed"].includes(t.status);
   if (closed) return <div className="muted small" style={{ padding: 8 }}>对话已结束（{t.status_label}）。</div>;
   if (!lead) {
     return t.status === "delivered" ? (
       <div className="chat-composer">
-        <input value={text} placeholder="需要怎么改？（发送即要求修改）" onChange={(e) => setText(e.target.value)} />
+        <input ref={input} value={text} placeholder="需要怎么改？（发送即要求修改）" onChange={(e) => setText(e.target.value)} />
         <div className="row between">
           <button className="btn sm" onClick={() => run(() => post(`/tasks/${t.task_id}/action`, { action: "useful" }))}>👍 有用，验收</button>
           <button className="btn primary sm" disabled={!text.trim()} onClick={() => run(async () => { await post(`/tasks/${t.task_id}/action`, { action: "rework", note: text }); setText(""); })}><ArrowUp size={13} />要求修改</button>
@@ -185,7 +201,10 @@ function Composer({ t, team, run }: any) {
     ) : <div className="muted small" style={{ padding: 8 }}>成员执行中，完成后可验收或要求修改。</div>;
   }
   const members = team.filter((b: any) => b.state === "active" && b.channel === "内部" && b.template !== "chief-of-staff");
-  const send = () => text.trim() && run(async () => { await post(`/tasks/${t.task_id}/followup`, { text: text.trim(), bot_id: to || undefined }); setText(""); setTo(null); });
+  const send = () => text.trim() && run(async () => {
+    await post(`/tasks/${t.task_id}/followup`, { text: text.trim(), bot_id: to || undefined, from_action: action || undefined });
+    setText(""); setTo(null); setAction(null);
+  });
   return (
     <div className="chat-composer">
       <div className="row" style={{ gap: 4 }}>
@@ -195,8 +214,8 @@ function Composer({ t, team, run }: any) {
         ))}
       </div>
       <div className="row" style={{ flexWrap: "nowrap" }}>
-        <input style={{ flex: 1 }} value={text} placeholder={to ? "在群里给 TA 追加任务…" : "在群里追加要求，总调度决定找谁…"}
-          onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
+        <input ref={input} style={{ flex: 1 }} value={text} placeholder={to ? "在群里给 TA 追加任务…" : "在群里追加要求，总调度决定找谁…"}
+          onChange={(e) => { setText(e.target.value); if (!e.target.value) setAction(null); }} onKeyDown={(e) => { if (e.key === "Enter") send(); }} />
         <button className="btn primary sm" disabled={!text.trim()} onClick={send}><ArrowUp size={13} />发送</button>
         {t.status === "delivered" && t.requester && <button className="btn sm" onClick={() => run(() => post(`/tasks/${t.task_id}/action`, { action: "useful" }))}>👍 验收</button>}
       </div>
@@ -204,7 +223,7 @@ function Composer({ t, team, run }: any) {
   );
 }
 
-function Progress({ d, byId, go }: any) {
+function Progress({ d, byId, go, pushAction }: any) {
   const assigns = d.todos.filter((x: any) => x.kind === "assignment");
   const actions = d.todos.filter((x: any) => x.kind === "action");
   return (
@@ -233,9 +252,10 @@ function Progress({ d, byId, go }: any) {
             </div>
           ))}
           {actions.map((a: any, i: number) => (
-            <div key={"b" + i} className="todo-item">
+            <div key={"b" + i} className={`todo-item click ${a.status === "dispatched" ? "sent" : ""}`} onClick={() => pushAction(a)}>
               <span className="box" />
-              <div>{a.text}<div className="muted small">{a.owner || "—"}{a.due ? ` · ${a.due}` : ""} · 来自 {byId[a.bot_id]?.display_name} 的交付</div></div>
+              <div style={{ flex: 1 }}>{a.text}<div className="muted small">{a.owner || "—"}{a.due ? ` · ${a.due}` : ""} · 来自 {byId[a.bot_id]?.display_name} 的交付</div></div>
+              <span className="small go">{a.status === "dispatched" ? "已派发" : "继续推进 →"}</span>
             </div>
           ))}
           {!assigns.length && !actions.length && <div className="muted small">暂无待办。</div>}

@@ -118,9 +118,10 @@ def card_to_html(c: dict, *, bot_name: str, bot_title: str, color: str, when: st
     actions = ""
     if c["actions"]:
         actions = '<section><h3>下一步</h3><div class="acts">' + "".join(
-            f'<div class="act"><span class="chk"></span><div><div>{_rich(a["action"])}</div><div class="meta">'
+            f'<div class="act" data-act="{i}" data-text="{e(a["action"])}" data-owner="{e(a["owner"])}" data-due="{e(a["due"])}">'
+            f'<span class="chk"></span><div style="flex:1"><div>{_rich(a["action"])}</div><div class="meta">'
             + (f'<span class="who">{e(a["owner"])}</span>' if a["owner"] else "") + (f'<span>{e(a["due"])}</span>' if a["due"] else "")
-            + "</div></div></div>" for a in c["actions"]) + "</div></section>"
+            + '</div></div><span class="go">继续推进 →</span></div>' for i, a in enumerate(c["actions"])) + "</div></section>"
     risks = ('<div class="risk"><b>风险与注意</b><ul>' + "".join(f"<li>{_rich(r)}</li>" for r in c["risks"]) + "</ul></div>"
              if c["risks"] else "")
     conf = {"高": "good", "中": "warn", "低": "bad"}.get(c.get("confidence") or "", "")
@@ -149,6 +150,9 @@ table{{border-collapse:collapse;width:100%;font-size:13.5px;line-height:1.55}}th
 td{{padding:8px 10px;border-bottom:1px solid #f1f5f9;vertical-align:top;word-break:break-word;min-width:5em}}tr:last-child td{{border-bottom:0}}tbody tr:nth-child(even){{background:#fcfcfd}}
 .acts{{display:grid;gap:6px}}.act{{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;border:1px solid #eef0f3;border-radius:10px}}
 .chk{{width:14px;height:14px;border:2px solid {color};border-radius:4px;margin-top:4px;flex:none}}
+.act .go{{display:none;align-self:center;font-size:12.5px;color:{color};font-weight:600;white-space:nowrap}}
+.interactive .act{{cursor:pointer;transition:border-color .15s,background .15s}}
+.interactive .act:hover{{border-color:{color};background:{color}0a}}.interactive .act .go{{display:inline}}
 .meta{{display:flex;gap:8px;font-size:12.5px;color:#475569}}.who{{color:{color};font-weight:600}}
 .risk{{background:#fff7ed;border:1px solid #fed7aa;color:#7c2d12;border-radius:10px;padding:10px 14px;margin:0 0 12px;font-size:14px}}.risk ul{{margin-top:4px}}
 .tag-infer{{font-size:12px;background:#eef2ff;color:#4338ca;border-radius:4px;padding:0 4px;margin:0 2px}}

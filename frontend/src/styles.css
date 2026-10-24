@@ -294,3 +294,6 @@ main.wide { max-width: none; }
 .initiatives { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; }
 .initiative { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 4px; }
 @media (max-width: 1100px) { .chat-split { grid-template-columns: 1fr; } .chat-page { height: auto; } }
+.todo-item.click { cursor: pointer; } .todo-item.click:hover { border-color: var(--accent); background: var(--accent-soft); }
+.todo-item .go { color: var(--accent); white-space: nowrap; align-self: center; }
+.todo-item.sent .go { color: var(--good); } .todo-item.sent .box { border-color: var(--good); }
