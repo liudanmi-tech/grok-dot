@@ -5,12 +5,13 @@ import { usePoll } from "../hooks";
 import { ActivityPill, Avatar, DeliverableCard, Markdown, StepList, TaskPill, timeAgo } from "../ui";
 import { SAMPLES } from "./CommandCenter";
 import { MissionBody, ParentChip } from "./Mission";
+import { LevelBadge } from "./Team";
 
 export default function Member({ id, go, onChange, team }: { id: string; go: (p: string) => void; onChange: () => void; team: any[] }) {
   const { data: b, error, reload } = usePoll<any>(`/bots/${id}`, 2000);
   const appr = usePoll<any[]>("/approvals", 3000);
   const users = usePoll<any[]>("/users", 0);
-  const [tab, setTab] = useState<"work" | "profile">("work");
+  const [tab, setTab] = useState<"work" | "profile" | "growth">("work");
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => { setTab("work"); setErr(null); }, [id]);
   if (error) return <div className="card err">{error}</div>;
@@ -55,10 +56,12 @@ export default function Member({ id, go, onChange, team }: { id: string; go: (p:
 
       <div className="tabs">
         <button className={tab === "work" ? "on" : ""} onClick={() => setTab("work")}>工作流（{b.tasks.length}）</button>
-        <button className={tab === "profile" ? "on" : ""} onClick={() => setTab("profile")}>岗位档案</button>
+        <button className={tab === "profile" ? "on" : ""} onClick={() => setTab("profile")}>技能与档案</button>
+        <button className={tab === "growth" ? "on" : ""} onClick={() => setTab("growth")}>反馈与成长</button>
       </div>
 
-      {tab === "work" ? <Work b={b} approvals={approvals} uname={uname} run={run} go={go} team={team} /> : <Profile b={b} />}
+      {tab === "work" ? <Work b={b} approvals={approvals} uname={uname} run={run} go={go} team={team} />
+        : tab === "profile" ? <Profile b={b} /> : <Growth g={b.growth} uname={uname} go={go} />}
     </>
   );
 }
@@ -93,7 +96,7 @@ function Work({ b, approvals, uname, run, go, team }: any) {
             <div className="bubble" style={{ flex: 1 }}>
               <div className="row between">
                 <div className="row"><b>{b.display_name}</b><TaskPill status={t.status} /><ParentChip t={t} go={go} />{!lead && <span className="muted small">计划 v{t.plan_version} · {t.progress_done}/{t.progress_total} 步</span>}</div>
-                <span className="muted small mono">${t.cost_usd.toFixed(4)} · <a onClick={() => go(`tasks/${t.task_id}`)} style={{ cursor: "pointer" }}>审计回放</a></span>
+                <span className="muted small mono">${t.cost_usd.toFixed(4)} · <a onClick={() => go(`chat/${t.parent?.task_id || t.task_id}`)} style={{ cursor: "pointer" }}>打开对话</a> · <a onClick={() => go(`tasks/${t.task_id}`)} style={{ cursor: "pointer" }}>审计回放</a></span>
               </div>
               {lead ? <MissionBody t={t} team={team} go={go} run={run} post={post} /> : <StepList steps={t.steps} />}
               {t.notes.length > 0 && <div className="muted small">{t.notes[t.notes.length - 1].text}</div>}
@@ -177,6 +180,35 @@ function Work({ b, approvals, uname, run, go, team }: any) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function Growth({ g, uname, go }: any) {
+  const label: Record<string, [string, string]> = { good: ["good", "超出预期"], ok: ["", "符合预期"], behind: ["bad", "落后"] };
+  return (
+    <div className="grid g2">
+      <div className="card">
+        <h2>等级</h2>
+        <LevelBadge g={g} />
+        <table className="tbl" style={{ marginTop: 10 }}><tbody>
+          <tr><td className="muted">任务</td><td>共 {g.tasks_total} · 交付 {g.delivered} · 验收 {g.accepted} · 返工 {g.rework} · 失败 {g.failed}</td></tr>
+          <tr><td className="muted">晚会点评</td><td>超出预期 {g.ratings.good} · 符合预期 {g.ratings.ok} · 落后 {g.ratings.behind}</td></tr>
+          <tr><td className="muted">经验规则</td><td className="muted small">交付 +10，验收 +5，超出预期 +20，符合预期 +8，落后 −5，返工/失败 −5</td></tr>
+        </tbody></table>
+      </div>
+      <div className="card">
+        <h2>反馈（{g.feedback.length}）</h2>
+        {!g.feedback.length && <div className="muted">还没有反馈。晚会点评与任务验收会出现在这里，并沉淀为工作方法记忆。</div>}
+        {g.feedback.map((f: any, i: number) => (
+          <div key={i} style={{ padding: "6px 0", borderBottom: "1px solid var(--line-2)" }}>
+            <div className="row small"><span className={`pill ${label[f.score]?.[0] || ""}`}>{label[f.score]?.[1] || f.score}</span>
+              <span className="muted">{f.source}{f.by ? ` · ${uname[f.by] || f.by}` : ""} · {fmtTime(f.ts)}</span>
+              {f.task_id && <a className="small" style={{ cursor: "pointer" }} onClick={() => go(`tasks/${f.task_id}`)}>任务</a>}</div>
+            {f.comment && <div className="small">{f.comment}</div>}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

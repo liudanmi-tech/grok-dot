@@ -84,6 +84,8 @@ export default function Kpi({ id, me, team, go, onChange, switchUser }: any) {
                 : <Review m={todayReview} byId={byId} owner={owner} run={run} id={id} />}
             </div>
 
+            <Initiatives k={k} week={week} byId={byId} go={go} />
+
             <div className="card">
               <div className="card-head"><h2>周分解</h2>
                 {week && week.status !== "confirmed" && owner && <button className="btn sm primary" onClick={() => run(() => post(`/kpis/${id}/weeks/${week.week_no}/confirm`, {}))}>确认第 {week.week_no} 周</button>}
@@ -113,6 +115,46 @@ export default function Kpi({ id, me, team, go, onChange, switchUser }: any) {
   );
 }
 
+// 举措与产出：本周每个数字员工负责的举措 + 他们为这个 KPI 交出的最新产出（点开进入任务对话）
+function Initiatives({ k, week, byId, go }: any) {
+  const latest: Record<string, any> = {};
+  const count: Record<string, number> = {};
+  for (const m of [...k.meetings].reverse()) {
+    if (m.kind !== "standup") continue;
+    for (const r of m.results || []) {
+      count[r.bot_id] = (count[r.bot_id] || 0) + (["delivered", "accepted"].includes(r.status) ? 1 : 0);
+      latest[r.bot_id] = { ...r, mission: m.mission_task_id, day: m.day };
+    }
+  }
+  if (!week) return null;
+  return (
+    <div className="card">
+      <div className="card-head"><h2>举措与产出</h2><span className="muted small">第 {week.week_no} 周 · 本周需完成 {week.target_units} 台</span></div>
+      {week.brief && <div className="small" style={{ marginBottom: 8 }}>{week.brief}</div>}
+      <div className="initiatives">
+        {week.items.map((i: any) => {
+          const r = latest[i.bot_id];
+          return (
+            <div key={i.bot_id} className="initiative">
+              <div className="row" style={{ flexWrap: "nowrap" }}><Avatar bot={byId[i.bot_id]} size="sm" /><b>{byId[i.bot_id]?.display_name || i.bot_id}</b>
+                <span className="muted small" style={{ marginLeft: "auto" }}>累计交付 {count[i.bot_id] || 0}</span></div>
+              <div className="small"><b>举措：</b>{i.objective}</div>
+              <div className="muted small">衡量：{i.measure}</div>
+              {r ? (
+                <div className="deliv-chip" onClick={() => go(`chat/${r.mission}`)}>
+                  <div style={{ minWidth: 0 }}><div className="small"><b>{r.day} 产出</b> <TaskPill status={r.status} /></div>
+                    <div className="small muted ellipsis2">{(r.output || r.goal || "").replace(/[#*|`>]/g, " ").slice(0, 140)}</div></div>
+                  <span className="small" style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>对话 →</span>
+                </div>
+              ) : <div className="muted small">还没有产出，下次晨会派活。</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function Standup({ m, byId, go }: any) {
   const d = m.data;
   const res = Object.fromEntries((m.results || []).map((r: any) => [r.bot_id, r]));
@@ -126,7 +168,7 @@ function Standup({ m, byId, go }: any) {
           <div className="small"><b>{byId[c.bot_id]?.display_name}</b> <span className={`pill ${RATING[c.rating][0]}`}>{RATING[c.rating][1]}</span> {c.comment}</div>
         </div>
       ))}
-      <h3>今日任务</h3>
+      <div className="row between"><h3>今日任务</h3>{m.mission_task_id && <a className="small" style={{ cursor: "pointer" }} onClick={() => go(`chat/${m.mission_task_id}`)}>进入晨会任务对话 →</a>}</div>
       <div className="lanes">
         {d.assignments.map((a: any) => {
           const r = res[a.bot_id];

@@ -6,6 +6,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
 
+from .. import conversations as conv
 from ..approvals import ApprovalError
 from ..memory import MemoryRejected
 from ..orchestrator.rhythm import RhythmError
@@ -134,6 +135,7 @@ def bot_detail(bot_id: str, p=Depends(P)):
         "memories": p.memory.list(namespace=b.namespace)[:20],
         "tasks": [_with_links(p, t) for t in p.tasks.list(bot_id=b.id, limit=30)],
         "bus_routes": [r for r in p.bus.routes if b.template in (r["from"], r["to"])],
+        "growth": conv.growth(p, b.id),
     })
     return card
 
@@ -246,6 +248,7 @@ class TaskIn(BaseModel):
     bot_id: str
     goal: str
     deadline: str | None = None
+    members: list[str] | None = None   # 新建对话（总调度）时指定群成员
 
 
 @router.post("/tasks")
@@ -254,6 +257,8 @@ def create_task(body: TaskIn, p=Depends(P), user=Depends(current_user)):
         raise HTTPException(403, "无权下达任务")
     task = guard(p.tasks.create, bot_id=body.bot_id, goal=body.goal, deadline=body.deadline, source="manual",
                  requester=user["id"], requester_scope=user.get("scope", {}))
+    if body.members:
+        p.tasks.save_context(task["task_id"], {**(task["context"] or {}), "members": body.members})
     p.runner.start(task["task_id"])
     return p.tasks.get(task["task_id"])
 
@@ -426,6 +431,34 @@ class AdvanceIn(BaseModel):
 def demo_advance(body: AdvanceIn, p=Depends(P), user=Depends(current_user)):
     _need(user, "country_manager", "supervisor", "agent_ops")
     return guard(p.advance_clock, body.to)
+
+
+# ---------- 任务对话、数字员工、驾驶舱今日进展 ----------
+@router.get("/conversations")
+def conversations(kpi_id: str | None = None, p=Depends(P)):
+    return conv.listing(p, kpi_id=kpi_id)
+
+
+@router.get("/conversations/{task_id}")
+def conversation(task_id: str, p=Depends(P)):
+    return guard(conv.detail, p, task_id)
+
+
+@router.get("/cockpit/today")
+def cockpit_today(p=Depends(P)):
+    return conv.today_digest(p)
+
+
+@router.get("/employees")
+def employees(p=Depends(P)):
+    out = []
+    for b in p.bots.list():
+        card = _bot_card(p, b)
+        meta = p.bots.meta.get(b.template, {})
+        card.update({"summary": meta.get("summary"), "capabilities": meta.get("capabilities", []),
+                     "skills": [s["name"] for s in p.skills.for_template(b.template)], "growth": conv.growth(p, b.id)})
+        out.append(card)
+    return out
 
 
 # ---------- 审批 ----------

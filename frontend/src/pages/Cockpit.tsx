@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Flag, Plus, Target, X } from "lucide-react";
 import { post } from "../api";
 import { usePoll } from "../hooks";
+import { ConvRow } from "./Chats";
 
 export const RAG: Record<string, [string, string]> = { green: ["good", "按节奏"], amber: ["warn", "略落后"], red: ["bad", "落后"] };
 const BRANDS = ["TECNO", "Infinix", "itel"];
@@ -34,8 +35,10 @@ export function KpiNumbers({ p }: { p: any }) {
   );
 }
 
-export default function Cockpit({ me, go, onChange, switchUser, autoNew }: any) {
+export default function Cockpit({ me, go, onChange, switchUser, autoNew, team }: any) {
   const { data, reload } = usePoll<any[]>("/kpis", 4000);
+  const today = usePoll<any>("/cockpit/today", 4000);
+  const byId = Object.fromEntries((team || []).map((b: any) => [b.id, b]));
   const users = usePoll<any[]>("/users", 0);
   const [open, setOpen] = useState(!!autoNew);
   useEffect(() => { if (autoNew) setOpen(true); }, [autoNew]);
@@ -64,6 +67,7 @@ export default function Cockpit({ me, go, onChange, switchUser, autoNew }: any) 
 
       <div className="split">
         <div className="stack">
+          <div className="card-head" style={{ marginTop: 4 }}><h2>目标</h2></div>
           {!all.length && <div className="card muted">还没有 KPI。{canCreate ? "点右上角「设定 KPI」开始。" : `你当前是 ${me?.name || "—"}，没有下达 KPI 的权限；点右上角切换为国家经理。`}</div>}
           {(data || []).map((k: any) => (
             <div key={k.kpi_id} className="card">
@@ -75,6 +79,15 @@ export default function Cockpit({ me, go, onChange, switchUser, autoNew }: any) 
               )}
             </div>
           ))}
+          <div className="card">
+            <div className="card-head">
+              <h2>今日进展</h2>
+              <span className="muted small">{today.data ? `${today.data.conversations.length} 个任务对话 · 完成 ${today.data.done} · 进行中 ${today.data.running} · 等你 ${today.data.attention} · ${today.data.deliverables} 份交付` : "…"}</span>
+            </div>
+            {!today.data?.conversations.length && <div className="muted">今天还没有任务对话。晨会派活或新建对话后会出现在这里。</div>}
+            {today.data?.conversations.map((c: any) => <ConvRow key={c.task_id} c={c} byId={byId} go={go} />)}
+            <div style={{ marginTop: 6 }}><a className="small" style={{ cursor: "pointer" }} onClick={() => go("chats")}>全部任务对话 →</a></div>
+          </div>
         </div>
         <div className="card">
           <div className="card-head"><h2>日报</h2><span className="muted small">晚会后自动上报</span></div>

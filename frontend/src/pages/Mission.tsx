@@ -90,7 +90,7 @@ function Followup({ t, team, run, post }: any) {
 export function ParentChip({ t, go }: any) {
   if (!t.parent) return null;
   return (
-    <span className="pill accent" style={{ cursor: "pointer" }} onClick={() => go(`bot/${t.parent.bot_id}`)} title={t.parent.goal}>
+    <span className="pill accent" style={{ cursor: "pointer" }} onClick={() => go(`chat/${t.parent.task_id}`)} title={t.parent.goal}>
       <Sparkles size={11} />{t.parent.bot_name} 分派 · {timeAgo(t.created_at)}
     </span>
   );

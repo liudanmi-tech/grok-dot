@@ -154,11 +154,11 @@ export function Markdown({ text }: { text: string }) {
 }
 
 // ---------- 交付卡片：服务端渲染的独立 HTML，沙箱 iframe 嵌入（无脚本），高度随内容 ----------
-export function DeliverableCard({ taskId, index, fallback }: { taskId: string; index: number; fallback?: string }) {
+export function DeliverableCard({ taskId, index, fallback, fold = true }: { taskId: string; index: number; fallback?: string; fold?: boolean }) {
   const [doc, setDoc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [h, setH] = useState(240);
-  const [full, setFull] = useState(false);
+  const [full, setFull] = useState(!fold);
   const FOLD = 640;
   useEffect(() => {
     let live = true;

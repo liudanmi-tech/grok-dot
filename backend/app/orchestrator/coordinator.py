@@ -90,6 +90,8 @@ class Coordinator:
     def _plan(self, task: dict, ctx: dict, note: str | None, *, followup: bool = False, only: str | None = None) -> None:
         tid = task["task_id"]
         team = self.roster()
+        if ctx.get("members"):  # 新建对话时选定了群成员：只在这些成员里分工
+            team = [m for m in team if m["bot_id"] in ctx["members"]] or team
         if not team:
             self.tasks.needs_human(tid, "团队里没有可分派的在岗成员，请先招募")
             return
@@ -278,6 +280,8 @@ class Coordinator:
             raise TaskError(f"任务当前为「{task['status_label']}」，不能追加")
         if not text.strip():
             raise TaskError("请写明要追加什么")
+        self.tasks.audit.append("task.followup", bot_id=task["bot_id"], trace_id=task["trace_id"], task_id=task_id,
+                                actor=actor_id, text=text.strip()[:500], to_bot=bot_id)
         with self._locks.setdefault(task_id, threading.RLock()):
             self._plan(task, task["context"] or {}, text.strip(), followup=True, only=bot_id)
         return self.tasks.get(task_id)
