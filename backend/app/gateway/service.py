@@ -8,7 +8,8 @@ from datetime import timezone
 from ..audit import AuditLog
 from ..config import Clock, iso
 from ..db import DB
-from .providers import MockProvider, OpenAICompatProvider, ProviderError
+from .providers import MockProvider, OpenAICompatProvider, OpenRouterProvider, ProviderError
+from .settings import ModelSettings
 from .redact import contains_secret, redact
 
 PROTECTED_BOTS = {"dealer-assistant", "promoter-coach"}  # 全局超预算时仍放行的对外岗位
@@ -31,7 +32,9 @@ class ModelGateway:
         self.catalog = {m["id"]: m for m in cfg["catalog"]}
         self.version = f"model-routing@{cfg.get('version', 0)}"
         self.mock = MockProvider()
-        self.providers = {"mock": self.mock, "openai_compat": OpenAICompatProvider()}
+        self.settings = ModelSettings(db, audit)
+        self.providers = {"mock": self.mock, "openai_compat": OpenAICompatProvider(),
+                          "openrouter": OpenRouterProvider(self.settings.get)}
         cb = cfg.get("circuit_breaker", {})
         self.cb_window = cb.get("window_seconds", 300)
         self.cb_rate = cb.get("error_rate", 0.2)
@@ -128,7 +131,9 @@ class ModelGateway:
                 continue
             self._record(model, True)
             price = entry.get("price_per_m", {})
-            cost = (out["input_tokens"] * price.get("input", 0) + out["output_tokens"] * price.get("output", 0)) / 1e6
+            cost = out.get("cost_usd")  # OpenRouter 返回实际计费；其余按目录单价估算
+            if cost is None:
+                cost = (out["input_tokens"] * price.get("input", 0) + out["output_tokens"] * price.get("output", 0)) / 1e6
             self.db.execute(
                 "INSERT INTO usage(ts, bot_id, model, trace_id, input_tokens, output_tokens, cost_usd) VALUES (?,?,?,?,?,?,?)",
                 (iso(self.clock.now()), bot_id, model, trace_id, out["input_tokens"], out["output_tokens"], cost),
@@ -137,10 +142,11 @@ class ModelGateway:
                 self.audit.append("model.fallback", bot_id=bot_id, trace_id=trace_id,
                                   from_model=first, to_model=model, reasons=errors)
             self.audit.append("model.call", bot_id=bot_id, trace_id=trace_id, model=model, task_type=task_type,
+                              upstream_model=out.get("upstream_model"),
                               input_tokens=out["input_tokens"], output_tokens=out["output_tokens"],
                               cost_usd=round(cost, 6), redactions=total_hits or None)
             self._check_budget_alert(bot_id)
-            return {"content": out["content"], "model": model, "fallback_from": first if model != first else None,
+            return {"content": out["content"], "model": out.get("upstream_model") or model, "fallback_from": first if model != first else None,
                     "input_tokens": out["input_tokens"], "output_tokens": out["output_tokens"], "cost_usd": cost}
         self.audit.append("alert", bot_id=bot_id, trace_id=trace_id, level="P2", kind="model.all_failed", errors=errors)
         raise GatewayError("降级链全部失败：" + "；".join(errors))

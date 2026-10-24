@@ -9,10 +9,11 @@ import Memory from "./pages/Memory";
 import Audit from "./pages/Audit";
 import Routines from "./pages/Routines";
 import WhatsApp from "./pages/WhatsApp";
+import Settings from "./pages/Settings";
 
 const PAGES = [
   ["whatsapp", "WhatsApp"], ["overview", "总览"], ["tasks", "任务"], ["approvals", "审批"], ["messages", "消息卡片"],
-  ["routines", "例程"], ["memory", "记忆"], ["audit", "审计"],
+  ["routines", "例程"], ["memory", "记忆"], ["audit", "审计"], ["settings", "模型设置"],
 ] as const;
 type Page = (typeof PAGES)[number][0];
 
@@ -54,6 +55,7 @@ export default function App() {
         {page === "routines" && <Routines openTask={openTask} />}
         {page === "memory" && <Memory />}
         {page === "audit" && <Audit />}
+        {page === "settings" && <Settings />}
       </main>
     </div>
   );

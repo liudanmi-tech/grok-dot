@@ -1,9 +1,31 @@
 # 模型路由（技术方案 5.5）
 # provider: mock 为离线模拟；openai_compat 为任意 OpenAI 兼容接口（如通义千问国际版兼容模式）
 # 设置环境变量 QWEN_API_KEY 后，qwen-* 会走真实接口；未设置时自动退回 mock。
-version: 3
+version: 4
 
 catalog:
+  # OpenRouter：Key 与各档位模型在控制台“模型设置”页配置；未配置时自动跳过，走后面的降级链
+  - id: or-standard
+    tier: standard
+    slot: standard
+    allowed_data: [public, internal]
+    provider: openrouter
+    upstream_model: qwen/qwen3.8-flash
+    price_per_m: { input: 0.15, output: 0.47 }
+  - id: or-economy
+    tier: economy
+    slot: economy
+    allowed_data: [public, internal]
+    provider: openrouter
+    upstream_model: qwen/qwen3.7-flash
+    price_per_m: { input: 0.03, output: 0.13 }
+  - id: or-premium
+    tier: premium
+    slot: premium
+    allowed_data: [public, internal]
+    provider: openrouter
+    upstream_model: qwen/qwen3.8-max-0902
+    price_per_m: { input: 2.00, output: 6.00 }
   - id: qwen-turbo
     tier: economy
     allowed_data: [public, internal]
@@ -47,17 +69,20 @@ catalog:
     price_per_m: { input: 0.0, output: 0.0 }
 
 defaults:
-  platform: qwen-plus
+  platform: or-standard
   bots:
-    content-factory: qwen-max-flagship
-    dealer-assistant: qwen-plus
-    promoter-coach: qwen-plus
+    content-factory: or-premium
+    dealer-assistant: or-standard
+    promoter-coach: or-standard
 
 routes:                         # 自上而下匹配，命中即停
-  - { when: { task: classify }, use: qwen-turbo }
-  - { when: { task: review },   use: qwen-turbo }
+  - { when: { task: classify }, use: or-economy }
+  - { when: { task: review },   use: or-economy }
 
 fallback:
+  or-premium: [or-standard, qwen-max-flagship, qwen-plus, mock-local]
+  or-standard: [qwen-plus, deepseek-standard, qwen-turbo, mock-local]
+  or-economy: [qwen-turbo, mock-local]
   qwen-max-flagship: [qwen-plus, deepseek-standard, mock-local]
   qwen-plus: [deepseek-standard, qwen-turbo, mock-local]
   qwen-turbo: [mock-local]

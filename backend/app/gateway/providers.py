@@ -68,3 +68,47 @@ class OpenAICompatProvider:
             "input_tokens": usage.get("prompt_tokens") or sum(estimate_tokens(m["content"]) for m in messages),
             "output_tokens": usage.get("completion_tokens") or estimate_tokens(content),
         }
+
+
+class OpenRouterProvider:
+    """OpenRouter（OpenAI 兼容）。Key 与各档位模型来自控制台设置；返回 OpenRouter 实际计费的成本。"""
+
+    BASE = "https://openrouter.ai/api/v1"
+
+    def __init__(self, settings_getter):
+        self.settings = settings_getter
+
+    def chat(self, entry: dict, messages: list[dict], timeout: float) -> dict:
+        cfg = self.settings()
+        key = cfg.get("api_key")
+        if not key:
+            raise ProviderError(f"{entry['id']} 未配置 OpenRouter Key", configured=False)
+        model = cfg.get("models", {}).get(entry.get("slot")) or entry.get("upstream_model")
+        try:
+            r = httpx.post(
+                f"{self.BASE}/chat/completions",
+                headers={"Authorization": f"Bearer {key}", "HTTP-Referer": "https://github.com/liudanmi-tech/grok-dot",
+                         "X-Title": "grok-dot"},
+                json={"model": model, "messages": messages, "usage": {"include": True}},
+                timeout=timeout,
+            )
+        except httpx.HTTPError as e:
+            raise ProviderError(f"{entry['id']}（{model}）请求失败：{e.__class__.__name__}") from e
+        if r.status_code >= 400:
+            try:
+                msg = (r.json().get("error") or {}).get("message", "")
+            except ValueError:
+                msg = r.text[:200]
+            raise ProviderError(f"{entry['id']}（{model}）返回 {r.status_code}：{msg[:200]}", status=r.status_code)
+        data = r.json()
+        if data.get("error"):
+            raise ProviderError(f"{entry['id']}（{model}）错误：{str(data['error'])[:200]}", status=502)
+        usage = data.get("usage") or {}
+        content = data["choices"][0]["message"].get("content") or ""
+        return {
+            "content": content,
+            "input_tokens": usage.get("prompt_tokens") or sum(estimate_tokens(m["content"]) for m in messages),
+            "output_tokens": usage.get("completion_tokens") or estimate_tokens(content),
+            "cost_usd": usage.get("cost"),
+            "upstream_model": data.get("model") or model,
+        }

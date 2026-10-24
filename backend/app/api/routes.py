@@ -288,3 +288,96 @@ def routing(p=Depends(P)):
 @router.get("/config/policy")
 def policy(p=Depends(P)):
     return p.policy.cfg
+
+
+# ---------- 模型设置（OpenRouter Key 与三档模型） ----------
+SETTINGS_ROLES = {"agent_ops", "country_manager"}
+_or_models_cache: dict = {"at": 0.0, "rows": []}
+
+
+def _require_settings_role(user: dict) -> None:
+    if not SETTINGS_ROLES & set(user["roles"]):
+        raise HTTPException(403, "只有智能体运营或国家经理可以修改模型设置")
+
+
+@router.get("/settings/models")
+def get_model_settings(p=Depends(P), user=Depends(current_user)):
+    s = p.gateway.settings.public()
+    s["slots"] = {
+        "standard": "标准：经销商回复、经营分析、早报",
+        "economy": "经济：分类、自动预审",
+        "premium": "高级：本地化内容创作",
+    }
+    s["can_edit"] = bool(SETTINGS_ROLES & set(user["roles"]))
+    return s
+
+
+class ModelSettingsIn(BaseModel):
+    api_key: str | None = None
+    clear_key: bool = False
+    models: dict | None = None
+
+
+@router.put("/settings/models")
+def put_model_settings(body: ModelSettingsIn, p=Depends(P), user=Depends(current_user)):
+    _require_settings_role(user)
+    return guard(p.gateway.settings.update, actor=user["id"], at=p.clock.now().isoformat(),
+                 api_key=body.api_key, clear_key=body.clear_key, models=body.models)
+
+
+class ModelTestIn(BaseModel):
+    slot: str = "standard"
+
+
+@router.post("/settings/models/test")
+def test_model_settings(body: ModelTestIn, p=Depends(P), user=Depends(current_user)):
+    """用所选档位实际调一次 OpenRouter（不走降级链），返回模型、耗时与费用。"""
+    import time
+
+    from ..gateway.providers import ProviderError
+
+    _require_settings_role(user)
+    entry = next((m for m in p.gateway.catalog.values() if m.get("provider") == "openrouter"
+                  and m.get("slot") == body.slot), None)
+    if not entry:
+        raise HTTPException(400, f"未知档位 {body.slot}")
+    t0 = time.monotonic()
+    try:
+        out = p.gateway.providers["openrouter"].chat(
+            entry, [{"role": "user", "content": "Reply with exactly: OK"}], timeout=30)
+    except ProviderError as e:
+        return {"ok": False, "error": str(e)}
+    p.audit.append("settings.test", actor=user["id"], slot=body.slot, model=out.get("upstream_model"))
+    return {"ok": True, "model": out.get("upstream_model"), "reply": out["content"][:80],
+            "latency_ms": int((time.monotonic() - t0) * 1000), "cost_usd": out.get("cost_usd")}
+
+
+@router.get("/settings/openrouter/models")
+def openrouter_models(q: str | None = None, user=Depends(current_user)):
+    """OpenRouter 公开的模型列表（由后端拉取并缓存 10 分钟，按每百万 token 美元价格返回）。"""
+    import time
+
+    import httpx
+
+    if time.time() - _or_models_cache["at"] > 600 or not _or_models_cache["rows"]:
+        try:
+            data = httpx.get("https://openrouter.ai/api/v1/models", timeout=15).json().get("data", [])
+        except (httpx.HTTPError, ValueError) as e:
+            raise HTTPException(502, f"获取 OpenRouter 模型列表失败：{e.__class__.__name__}") from e
+        rows = []
+        for m in data:
+            pr = m.get("pricing") or {}
+            try:
+                pin, pout = float(pr.get("prompt", 0)) * 1e6, float(pr.get("completion", 0)) * 1e6
+            except (TypeError, ValueError):
+                pin = pout = None
+            rows.append({"id": m["id"], "name": m.get("name"), "context": m.get("context_length"),
+                         "input_per_m": round(pin, 4) if pin is not None else None,
+                         "output_per_m": round(pout, 4) if pout is not None else None})
+        rows.sort(key=lambda r: r["id"])
+        _or_models_cache.update(at=time.time(), rows=rows)
+    rows = _or_models_cache["rows"]
+    if q:
+        ql = q.lower()
+        rows = [r for r in rows if ql in r["id"].lower() or ql in (r["name"] or "").lower()]
+    return rows

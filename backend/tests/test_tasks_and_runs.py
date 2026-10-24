@@ -107,7 +107,7 @@ def test_gateway_fallback_and_circuit_breaker(p):
         p.gateway.chat("market-intel", [{"role": "user", "content": "hi"}])
     p.gateway.mock.fail_models.clear()
     out = p.gateway.chat("market-intel", [{"role": "user", "content": "hi"}], trace_id="tg")
-    assert out["model"] == "mock-local" and out["fallback_from"] == "qwen-plus"
+    assert out["model"] == "mock-local" and out["fallback_from"] == "or-standard"
 
 
 def test_gateway_blocks_secrets_and_respects_data_class(p):
