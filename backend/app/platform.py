@@ -18,6 +18,7 @@ from .memory import MemoryService
 from .orchestrator.bus import MessageBus
 from .orchestrator.coordinator import Coordinator
 from .orchestrator.rhythm import Rhythm
+from .skill_packs import SkillPacks
 from .orchestrator.scheduler import Scheduler
 from .orchestrator.tasks import TaskService
 from .policy import PolicyEngine
@@ -51,6 +52,7 @@ class Platform:
         self.bots = BotRegistry(config_dir / "profiles", self.db, config_dir / "bot-templates.yaml",
                                 seed=meta.get("team_seed"), clock=self.clock)
         self.skills = SkillLibrary(config_dir / "skills")
+        self.skill_packs = SkillPacks(config_dir / "skill-packs", self.db, self.clock, self.audit)
         self.memory = MemoryService(self.db, self.audit, self.clock)
         self.gateway = ModelGateway(routing_cfg, self.db, self.audit, self.clock)
         self.gateway.template_of = self.bots.template_of
@@ -61,6 +63,7 @@ class Platform:
         # 工具与连接器
         self.tools = ToolRegistry()
         self.kb = knowledge.KnowledgeBase(data_dir / "knowledge")
+        self.kb.attach(self.db, self.clock, self.audit)
         knowledge.register(self.tools, self.kb)
         self.competitor = competitor_watch.CompetitorWatch(self.clock, self.artifacts)
         competitor_watch.register(self.tools, self.competitor)
@@ -81,6 +84,7 @@ class Platform:
         self.tasks = TaskService(self.db, self.audit, self.clock, self.outbox, self.bots, self.task_cfg)
         self.runner = SkillRunner(bots=self.bots, skills=self.skills, tasks=self.tasks, proxy=self.proxy,
                                   gateway=self.gateway, memory=self.memory, clock=self.clock)
+        self.runner.skill_packs = self.skill_packs
         self.coordinator = Coordinator(tasks=self.tasks, bots=self.bots, gateway=self.gateway, runner=self.runner,
                                        memory=self.memory)
         self.rhythm = Rhythm(db=self.db, audit=self.audit, clock=self.clock, bots=self.bots, tasks=self.tasks,

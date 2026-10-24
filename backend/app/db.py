@@ -138,6 +138,14 @@ CREATE TABLE IF NOT EXISTS meetings (
   meeting_id TEXT PRIMARY KEY, kpi_id TEXT NOT NULL, kind TEXT NOT NULL, day TEXT NOT NULL, status TEXT NOT NULL,
   data TEXT, mission_task_id TEXT, host TEXT, created_at TEXT, updated_at TEXT
 );
+CREATE TABLE IF NOT EXISTS skill_installs (
+  template TEXT NOT NULL, pack_id TEXT NOT NULL, installed_by TEXT, installed_at TEXT, PRIMARY KEY (template, pack_id)
+);
+CREATE TABLE IF NOT EXISTS kb_docs (
+  doc_id TEXT PRIMARY KEY, title TEXT NOT NULL, doc_type TEXT, visibility TEXT, country TEXT, lang TEXT, version INTEGER,
+  approved INTEGER, text TEXT, created_by TEXT, created_at TEXT, updated_by TEXT, updated_at TEXT, approved_by TEXT,
+  deleted INTEGER DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS channel_messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   kpi_id TEXT NOT NULL, ts TEXT NOT NULL, author TEXT, author_kind TEXT, kind TEXT, text TEXT, ref TEXT

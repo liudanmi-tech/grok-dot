@@ -81,6 +81,7 @@ class SkillRunner:
         self._locks: dict[str, threading.Lock] = {}
         self.background = True
         self.special: dict[str, Callable[[str], None]] = {}  # 岗位模板 → 专用执行流程（如总调度）
+        self.skill_packs = None  # 技能广场：交付步骤按目标选用已安装的方法技能
         tasks.on_resume = self.start
         tasks.on_retry = self.retry
 
@@ -185,7 +186,8 @@ class SkillRunner:
             self.tasks.save_context(task_id, ctx)
             if spec.get("output") and isinstance(result, dict) and result.get("content"):
                 outputs.append({"step": spec["id"], "kind": "card" if result.get("card") else "text",
-                                "content": result["content"], "card": result.get("card"), "model": result.get("model")})
+                                "content": result["content"], "card": result.get("card"), "model": result.get("model"),
+                                "methods": result.get("methods")})
             self.tasks.step(task_id, i, "done")
 
         self._remember(task, ctx)
@@ -245,6 +247,10 @@ class SkillRunner:
         mems = self.memory.recall(namespaces, ctx["goal"], k=5)
         system = render(spec.get("system", ""), ctx)
         as_card = bool(spec.get("output")) and self.bots.meta.get(bot.template, {}).get("channel", "内部") == "内部"
+        methods = []
+        if as_card and self.skill_packs:
+            methods = self.skill_packs.pick(bot.template, ctx["goal"])
+            system += self.skill_packs.inject(methods)
         if as_card:  # 内部岗位的交付统一为结构化卡片（对外岗位如 WhatsApp 回复保持纯文本）
             system += CARD_SPEC
         if mems:
@@ -265,6 +271,10 @@ class SkillRunner:
         card = parse_card(out["content"]) if as_card else None
         if card:
             out = {**out, "card": card, "content": card_to_markdown(card)}
+        if methods:
+            out = {**out, "methods": [m["zh"] or m["name"] for m in methods]}
+            self.tasks.audit.append("skill_pack.used", bot_id=task["bot_id"], trace_id=task["trace_id"],
+                                    task_id=task["task_id"], packs=[m["id"] for m in methods])
         return out
 
     def _retry(self, task: dict, spec: dict, index: int, ctx: dict, msg: str) -> bool:

@@ -228,5 +228,6 @@ class SkillLibrary:
         for p in sorted(self.dir.glob("*/*.yaml")):
             s = load_yaml(p)
             out.append({"name": s["name"], "version": s.get("version"), "bots": s.get("bots", []),
-                        "description": s.get("description"), "steps": len(s.get("steps", []))})
+                        "description": s.get("description"), "steps": len(s.get("steps", [])),
+                        "step_titles": [x.get("title", x.get("id")) for x in s.get("steps", [])]})
         return out

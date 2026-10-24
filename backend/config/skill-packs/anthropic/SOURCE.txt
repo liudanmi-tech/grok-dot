@@ -1,0 +1,2 @@
+dbd4588f9e1033efb41dad4bef2f7947c8993d44 2026-10-09
+https://github.com/anthropics/skills (skills/internal-comms)

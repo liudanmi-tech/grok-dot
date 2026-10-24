@@ -1,0 +1,41 @@
+# 技能广场目录：开源方法技能（SKILL.md）的中文名、分类，以及默认安装到哪些岗位。
+# 来源与许可证见各目录 SOURCE.txt / LICENSE。未列出的技能照常展示，归入「其他（偏线上 / SaaS）」。
+sources:
+  marketingskills: { name: "coreyhaines31/marketingskills", url: "https://github.com/coreyhaines31/marketingskills", license: MIT }
+  anthropic: { name: "anthropics/skills", url: "https://github.com/anthropics/skills", license: Apache-2.0 }
+skills:
+  marketingskills/copywriting:          { zh: 转化文案写作, desc: "为页面、广告、商品详情写高转化文案：先诊断简报，再写标题、卖点、行动号召，避免空话与 AI 腔。", cat: 内容与创意, roles: [content-factory, ecommerce-live] }
+  marketingskills/copy-editing:         { zh: 文案精修, desc: "对已有文案做逐段精修：清晰度、语气、证据、行动号召，只改需要改的地方。", cat: 内容与创意, roles: [content-factory] }
+  marketingskills/social:               { zh: 社媒内容运营, desc: "规划与撰写社媒内容（TikTok、IG、Facebook 等）：选题、钩子、节奏与复用。", cat: 内容与创意, roles: [content-factory, ecommerce-live] }
+  marketingskills/ad-creative:          { zh: 广告创意, desc: "产出广告创意与多版本素材文案，便于投放测试。", cat: 内容与创意, roles: [content-factory] }
+  marketingskills/video:                { zh: 短视频营销, desc: "短视频选题、脚本结构、开头钩子与分发建议。", cat: 内容与创意, roles: [content-factory, ecommerce-live] }
+  marketingskills/content-strategy:     { zh: 内容策略, desc: "围绕目标人群与转化路径规划内容主题、栏目与发布节奏。", cat: 内容与创意, roles: [content-factory] }
+  marketingskills/influencer-marketing: { zh: 达人 / KOL 营销, desc: "寻找与合作达人 / KOL：筛选标准、合作模式、报价与效果评估。", cat: 社媒与直播, roles: [ecommerce-live, campaign-planner] }
+  marketingskills/community-marketing:  { zh: 社群营销, desc: "搭建与运营用户社群：激活、内容、活动与口碑传播。", cat: 社媒与直播, roles: [ecommerce-live] }
+  marketingskills/ab-testing:           { zh: A/B 测试, desc: "设计 A/B 测试：假设、样本量、指标与结论判读。", cat: 社媒与直播, roles: [ecommerce-live] }
+  marketingskills/cro:                  { zh: 转化率优化, desc: "诊断转化漏斗与页面，给出提升转化率的改动清单与优先级。", cat: 社媒与直播, roles: [ecommerce-live] }
+  marketingskills/launch:               { zh: 新品上市, desc: "新品上市方案：节奏、预热、渠道分工、首发活动与复盘。", cat: 活动与档期, roles: [campaign-planner] }
+  marketingskills/events:               { zh: 活动与线下路演, desc: "策划线下 / 线上活动与路演：目标、流程、邀约、现场与线索跟进。", cat: 活动与档期, roles: [campaign-planner, channel-expansion] }
+  marketingskills/co-marketing:         { zh: 联合营销, desc: "与合作伙伴联合营销：选伙伴、分工、权益交换与效果分账。", cat: 活动与档期, roles: [campaign-planner, channel-expansion] }
+  marketingskills/sms:                  { zh: 短信营销, desc: "短信营销：人群分层、触达时机、文案与合规。", cat: 活动与档期, roles: [campaign-planner] }
+  marketingskills/ads:                  { zh: 付费投放, desc: "付费投放：渠道选择、预算分配、出价与素材迭代。", cat: 活动与档期, roles: [campaign-planner] }
+  marketingskills/offers:               { zh: 优惠组合设计, desc: "设计优惠组合：价值包装、赠品叠加、保障承诺、紧迫感与付款方式（分期）。", cat: 价格与优惠, roles: [campaign-planner, price-sentinel, ecommerce-live] }
+  marketingskills/pricing:              { zh: 定价策略, desc: "定价与价格策略：价格带、锚定、折扣规则与价格沟通。", cat: 价格与优惠, roles: [price-sentinel, campaign-planner] }
+  marketingskills/referrals:            { zh: 转介绍与激励计划, desc: "设计转介绍与激励计划：奖励结构、触发时机、防作弊。", cat: 渠道与销售, roles: [channel-incentive] }
+  marketingskills/sales-enablement:     { zh: 销售赋能与异议处理, desc: "销售赋能：一页纸、话术、异议处理、演示脚本，服务促销员与经销商。", cat: 渠道与销售, roles: [promoter-coach, channel-incentive] }
+  marketingskills/prospecting:          { zh: 客户 / 门店开拓, desc: "开拓新客户 / 新门店：名单、触达节奏与跟进。", cat: 渠道与销售, roles: [channel-expansion] }
+  marketingskills/competitor-profiling: { zh: 竞品画像, desc: "系统建立竞品画像：定位、价格、渠道、卖点与弱点。", cat: 市场与竞品, roles: [market-intel] }
+  marketingskills/competitors:          { zh: 竞品对比, desc: "做竞品对比：横向对比维度与「我们 vs 他们」的表达。", cat: 市场与竞品, roles: [market-intel] }
+  marketingskills/customer-research:    { zh: 用户研究, desc: "用户研究：访谈、评论与工单分析，提炼痛点与购买动机。", cat: 市场与竞品, roles: [voice-of-customer] }
+  marketingskills/product-marketing:    { zh: 产品营销与定位, desc: "产品定位与信息架构：目标人群、核心卖点、证据与差异化。", cat: 市场与竞品, roles: [market-intel, content-factory, promoter-coach] }
+  marketingskills/marketing-psychology: { zh: 营销心理学, desc: "营销心理学原理（锚定、稀缺、社会认同等）在文案与活动中的应用。", cat: 策略与规划, roles: [content-factory, campaign-planner, promoter-coach] }
+  marketingskills/marketing-plan:       { zh: 营销计划, desc: "制定完整营销计划：目标、策略、渠道、预算与节奏。", cat: 策略与规划, roles: [chief-of-staff, campaign-planner] }
+  marketingskills/marketing-ideas:      { zh: 营销点子库, desc: "按场景快速产出可执行的营销点子清单。", cat: 策略与规划, roles: [campaign-planner] }
+  marketingskills/marketing-council:    { zh: 营销大师参谋团, desc: "模拟多位营销大师给出不同视角的意见，辅助决策。", cat: 策略与规划, roles: [chief-of-staff] }
+  marketingskills/marketing-loops:      { zh: 自动化营销循环, desc: "把营销工作做成可循环自动执行的流程（每日 / 每周），适合数字员工。", cat: 数字员工协作, roles: [chief-of-staff] }
+  marketingskills/analytics:            { zh: 营销数据分析, desc: "营销数据分析：指标体系、埋点、看板与洞察。", cat: 分析与复盘, roles: [biz-review] }
+  marketingskills/attribution:          { zh: 营销归因, desc: "营销归因：评估各渠道与活动对销量的真实贡献。", cat: 分析与复盘, roles: [biz-review] }
+  marketingskills/revops:               { zh: 营收运营, desc: "营收运营：线索 / 客户生命周期、交接流程与漏斗管理。", cat: 分析与复盘, roles: [biz-review] }
+  marketingskills/public-relations:     { zh: 公关传播, desc: "公关传播：新闻稿、媒体关系与危机沟通。", cat: 策略与规划, roles: [] }
+  marketingskills/emails:               { zh: 邮件营销, desc: "邮件营销：序列设计、分层与文案。", cat: 活动与档期, roles: [] }
+  anthropic/internal-comms:             { zh: 内部汇报写作, desc: "写各类内部沟通：进展周报、给领导的汇报、3P 更新、FAQ、事故报告，按固定格式输出。", cat: 数字员工协作, roles: [chief-of-staff, biz-review] }

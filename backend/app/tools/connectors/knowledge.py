@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import uuid
 from pathlib import Path
 
 import yaml
@@ -25,7 +26,85 @@ class KnowledgeBase:
             if raw.startswith("---"):
                 _, fm, body = raw.split("---", 2)
                 meta = yaml.safe_load(fm) or {}
-            self.docs.append({**meta, "text": body.strip()})
+            self.docs.append({**meta, "text": body.strip(), "source": "builtin"})
+        self.file_docs = list(self.docs)
+        self.db = None
+
+    # ---------- 上传文档（知识库页面）：存数据库，审定后才对数字员工可见 ----------
+    DOC_TYPES = {"product", "price_band", "price_policy", "policy", "channel", "aftersales", "faq", "other"}
+
+    def attach(self, db, clock, audit) -> None:
+        self.db, self.clock, self.audit = db, clock, audit
+        self._reload()
+
+    def _reload(self) -> None:
+        rows = self.db.query("SELECT * FROM kb_docs WHERE deleted=0 ORDER BY updated_at DESC") if self.db else []
+        self.docs = self.file_docs + [{**r, "approved": bool(r["approved"]), "source": "upload"} for r in rows]
+
+    def _check(self, f: dict) -> None:
+        if not (f.get("title") or "").strip() or not (f.get("text") or "").strip():
+            raise ToolError("INVALID_ARGS", "标题和正文都不能为空")
+        if f.get("doc_type") and f["doc_type"] not in self.DOC_TYPES:
+            raise ToolError("INVALID_ARGS", f"未知文档类型 {f['doc_type']}")
+        if f.get("visibility") and f["visibility"] not in ("internal", "external"):
+            raise ToolError("INVALID_ARGS", "可见范围只能是 internal / external")
+        if len(f.get("text") or "") > 60000:
+            raise ToolError("INVALID_ARGS", "正文过长（上限 6 万字）")
+
+    def create(self, *, actor: str, title: str, text: str, doc_type: str = "other", visibility: str = "internal",
+               country: str = "NG", lang: str = "zh") -> dict:
+        from ...config import iso
+        self._check({"title": title, "text": text, "doc_type": doc_type, "visibility": visibility})
+        doc_id = "kb:up-" + uuid.uuid4().hex[:8]
+        now = iso(self.clock.now())
+        self.db.execute("INSERT INTO kb_docs(doc_id, title, doc_type, visibility, country, lang, version, approved, text,"
+                        " created_by, created_at, updated_by, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                        [doc_id, title.strip()[:120], doc_type, visibility, country, lang, 1, 0, text, actor, now, actor, now])
+        self.audit.append("kb.create", actor=actor, doc_id=doc_id, title=title[:80], country=country)
+        self._reload()
+        return self.doc(doc_id)
+
+    def update(self, doc_id: str, *, actor: str, **fields) -> dict:
+        from ...config import iso
+        d = self._uploaded(doc_id)
+        merged = {**d, **{k: v for k, v in fields.items() if v is not None}}
+        self._check(merged)
+        self.db.execute("UPDATE kb_docs SET title=?, doc_type=?, visibility=?, country=?, lang=?, text=?, version=?, approved=0,"
+                        " approved_by=NULL, updated_by=?, updated_at=? WHERE doc_id=?",
+                        [merged["title"].strip()[:120], merged["doc_type"], merged["visibility"], merged["country"], merged["lang"],
+                         merged["text"], d["version"] + 1, actor, iso(self.clock.now()), doc_id])
+        self.audit.append("kb.update", actor=actor, doc_id=doc_id, version=d["version"] + 1)
+        self._reload()
+        return self.doc(doc_id)
+
+    def approve(self, doc_id: str, *, actor: str) -> dict:
+        d = self._uploaded(doc_id)
+        self.db.execute("UPDATE kb_docs SET approved=1, approved_by=? WHERE doc_id=?", [actor, doc_id])
+        self.audit.append("kb.approve", actor=actor, doc_id=doc_id, version=d["version"])
+        self._reload()
+        return self.doc(doc_id)
+
+    def delete(self, doc_id: str, *, actor: str) -> None:
+        self._uploaded(doc_id)
+        self.db.execute("UPDATE kb_docs SET deleted=1 WHERE doc_id=?", [doc_id])
+        self.audit.append("kb.delete", actor=actor, doc_id=doc_id)
+        self._reload()
+
+    def _uploaded(self, doc_id: str) -> dict:
+        r = self.db.one("SELECT * FROM kb_docs WHERE doc_id=? AND deleted=0", [doc_id]) if self.db else None
+        if not r:
+            raise ToolError("NOT_FOUND", "只有上传的文档可以修改（内置文档随版本发布）")
+        return r
+
+    def doc(self, doc_id: str) -> dict:
+        for d in self.docs:
+            if d["doc_id"] == doc_id:
+                return {**d, "country": d.get("country", "NG")}
+        raise ToolError("NOT_FOUND", f"文档不存在：{doc_id}")
+
+    def catalog(self) -> list[dict]:
+        return [{k: v for k, v in {**d, "country": d.get("country", "NG"), "size": len(d["text"]),
+                                    "snippet": d["text"][:160]}.items() if k != "text"} for d in self.docs]
 
     def search(self, args: dict, ctx: ToolContext) -> dict:
         q = _tokens(args["query"])
@@ -33,6 +112,8 @@ class KnowledgeBase:
         out = []
         for d in self.docs:
             if d.get("visibility") not in ctx.kb_visibility:
+                continue
+            if d.get("source") == "upload" and not d.get("approved"):  # 上传文档未审定：数字员工看不到
                 continue
             if not allows(ctx.scope, "country", d.get("country", "NG")):  # 知识按国家隔离（未标注的属尼日利亚）
                 continue

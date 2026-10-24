@@ -294,7 +294,7 @@ def output_html(task_id: str, index: int, p=Depends(P)):
     when = parse_iso(t["updated_at"]).astimezone(LAGOS).strftime("%Y-%m-%d %H:%M")
     return HTMLResponse(card_to_html(o["card"], bot_name=b.display_name, bot_title=meta.get("title", ""),
                                      color=meta.get("color", "#4f46e5"), when=when, model=o.get("model"),
-                                     goal=t["goal"], trace_id=t["trace_id"]),
+                                     goal=t["goal"], trace_id=t["trace_id"], methods=o.get("methods")),
                         headers={"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"})
 
 
@@ -471,6 +471,102 @@ def employees(p=Depends(P)):
                      "skills": [s["name"] for s in p.skills.for_template(b.template)], "growth": conv.growth(p, b.id)})
         out.append(card)
     return out
+
+
+# ---------- 技能广场 ----------
+@router.get("/skill-plaza")
+def skill_plaza(p=Depends(P)):
+    return {"packs": p.skill_packs.listing(), "workflows": p.skills.list(), "sources": p.skill_packs.sources,
+            "templates": [{"id": t["id"], "name": t["name"], "color": t["color"]} for t in p.bots.library()]}
+
+
+@router.get("/skill-plaza/pack")
+def skill_pack(id: str, p=Depends(P)):
+    return guard(p.skill_packs.detail, id)
+
+
+@router.get("/skill-plaza/reference")
+def skill_reference(id: str, name: str, p=Depends(P)):
+    return {"text": guard(p.skill_packs.reference, id, name)}
+
+
+class InstallIn(BaseModel):
+    id: str
+    templates: list[str]
+
+
+@router.post("/skill-plaza/install")
+def skill_install(body: InstallIn, p=Depends(P), user=Depends(current_user)):
+    _need(user, "agent_ops", "country_manager", "supervisor")
+    known = {t["id"] for t in p.bots.library()}
+    return {"installed": guard(p.skill_packs.set_templates, body.id, [t for t in body.templates if t in known], actor=user["id"])}
+
+
+# ---------- 知识库 ----------
+@router.get("/kb")
+def kb_list(p=Depends(P)):
+    return p.kb.catalog()
+
+
+@router.get("/kb/doc")
+def kb_doc(id: str, p=Depends(P)):
+    return _kb(p.kb.doc, id)
+
+
+@router.get("/kb/search")
+def kb_search(q: str, country: str = "NG", p=Depends(P)):
+    """预览：数字员工按这个问题检索时会拿到哪些文档（与执行时完全同一套规则）。"""
+    from ..tools.registry import ToolContext
+    ctx = ToolContext(bot_id="kb-preview", scope={"country": [country]}, kb_visibility=["internal", "external"],
+                      trace_id=None, task_id=None, requester=None)
+    return p.kb.search({"query": q, "limit": 8}, ctx)
+
+
+class KbIn(BaseModel):
+    title: str | None = None
+    text: str | None = None
+    doc_type: str | None = None
+    visibility: str | None = None
+    country: str | None = None
+    lang: str | None = None
+
+
+KB_EDITORS = ("agent_ops", "country_manager", "supervisor", "brand_manager", "channel_manager")
+KB_APPROVERS = ("agent_ops", "country_manager", "brand_manager")
+
+
+def _kb(fn, *a, **kw):
+    from ..tools.registry import ToolError
+    try:
+        return fn(*a, **kw)
+    except ToolError as e:
+        raise HTTPException(400 if e.code != "NOT_FOUND" else 404, str(e)) from e
+
+
+@router.post("/kb")
+def kb_create(body: KbIn, p=Depends(P), user=Depends(current_user)):
+    _need(user, *KB_EDITORS)
+    return _kb(p.kb.create, actor=user["id"], title=body.title or "", text=body.text or "", doc_type=body.doc_type or "other",
+               visibility=body.visibility or "internal", country=body.country or "NG", lang=body.lang or "zh")
+
+
+@router.put("/kb/doc")
+def kb_update(id: str, body: KbIn, p=Depends(P), user=Depends(current_user)):
+    _need(user, *KB_EDITORS)
+    return _kb(p.kb.update, id, actor=user["id"], **body.model_dump())
+
+
+@router.post("/kb/doc/approve")
+def kb_approve(id: str, p=Depends(P), user=Depends(current_user)):
+    _need(user, *KB_APPROVERS)
+    return _kb(p.kb.approve, id, actor=user["id"])
+
+
+@router.delete("/kb/doc")
+def kb_delete(id: str, p=Depends(P), user=Depends(current_user)):
+    _need(user, *KB_EDITORS)
+    _kb(p.kb.delete, id, actor=user["id"])
+    return {"ok": True}
 
 
 # ---------- 审批 ----------

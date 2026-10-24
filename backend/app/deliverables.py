@@ -98,7 +98,7 @@ def _initials(name: str) -> str:
 
 
 def card_to_html(c: dict, *, bot_name: str, bot_title: str, color: str, when: str, model: str | None,
-                 goal: str | None, trace_id: str | None) -> str:
+                 goal: str | None, trace_id: str | None, methods: list[str] | None = None) -> str:
     e = html.escape
     color = color if re.fullmatch(r"#[0-9a-fA-F]{6}", color or "") else "#4f46e5"
     arrow = {"up": "▲", "down": "▼", "flat": "■"}
@@ -126,6 +126,7 @@ def card_to_html(c: dict, *, bot_name: str, bot_title: str, color: str, when: st
              if c["risks"] else "")
     conf = {"高": "good", "中": "warn", "低": "bad"}.get(c.get("confidence") or "", "")
     foot = " · ".join(x for x in [f"来源：{'、'.join(e(s) for s in c['sources'])}" if c["sources"] else "",
+                                   f"方法：{'、'.join(e(m) for m in methods)}" if methods else "",
                                    f"模型 {e(model)}" if model else "", f"审计 {e(trace_id)}" if trace_id else ""] if x)
     return f"""<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{e(c['title'])} · {e(bot_name)}</title><style>

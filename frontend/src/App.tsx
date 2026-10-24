@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Activity, BookOpen, Bot, CheckSquare, ChevronDown, ChevronRight, Clock, Cpu, Gauge, Inbox, ListTodo, MessageCircle,
-  MessagesSquare, Plus, ScrollText, Shield, Target } from "lucide-react";
+  MessagesSquare, Plus, Library as LibraryIcon, Sparkles, ScrollText, Shield, Target } from "lucide-react";
 import { api, currentUser, setCurrentUser } from "./api";
 import { usePoll } from "./hooks";
 import { useRoute } from "./ui";
@@ -19,6 +19,8 @@ import Settings from "./pages/Settings";
 import Chats from "./pages/Chats";
 import Chat from "./pages/Chat";
 import Team from "./pages/Team";
+import SkillPlaza from "./pages/SkillPlaza";
+import Knowledge from "./pages/Knowledge";
 
 export default function App() {
   const [route, go] = useRoute();
@@ -70,6 +72,8 @@ export default function App() {
 
         <div className="side-label"><span>组织</span></div>
         <Nav to="team" icon={<Bot size={16} />} label={`数字员工 · ${team6.length}`} count={team6.filter((b: any) => b.activity === "needs_you").length} />
+        <Nav to="skills" icon={<Sparkles size={16} />} label="技能广场" />
+        <Nav to="kb" icon={<LibraryIcon size={16} />} label="知识库" />
         <Nav to="approvals" icon={<CheckSquare size={16} />} label="审批" count={ov.data?.inbox?.approvals?.length} />
 
         <button className="side-label side-toggle" onClick={() => setMore(!more)}>
@@ -106,6 +110,8 @@ export default function App() {
         {page === "chats" && <Chats team={team6} go={go} />}
         {page === "chat" && route[1] && <Chat id={route[1]} team={team6} users={users} go={go} />}
         {page === "team" && <Team go={go} />}
+        {page === "skills" && <SkillPlaza me={me} />}
+        {page === "kb" && <Knowledge me={me} />}
         {page === "bot" && route[1] && <Member id={route[1]} go={go} onChange={() => team.reload()} team={team.data || []} />}
         {page === "library" && <Library go={go} onHired={() => team.reload()} />}
         {page === "tasks" && <Tasks focus={route[1] || null} setFocus={(id) => go(id ? `tasks/${id}` : "tasks")} />}
