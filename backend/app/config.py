@@ -46,6 +46,8 @@ def load_yaml(path: Path) -> Any:
 @dataclass
 class Settings:
     db_path: Path = field(default_factory=lambda: Path(os.environ.get("NGAP_DB", VAR_DIR / "ngap.db")))
+    # 服务器上用 PostgreSQL：postgresql://user:pass@host:5432/db
+    database_url: str | None = field(default_factory=lambda: os.environ.get("NGAP_DATABASE_URL") or None)
     port: int = int(os.environ.get("NGAP_PORT", "8100"))
     scheduler_enabled: bool = os.environ.get("NGAP_SCHEDULER", "1") == "1"
     scheduler_interval_s: int = int(os.environ.get("NGAP_SCHEDULER_INTERVAL", "30"))

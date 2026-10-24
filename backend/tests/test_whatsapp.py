@@ -105,3 +105,13 @@ def test_tunnel_only_exposes_webhook(p, monkeypatch):
     r = c.get("/webhooks/whatsapp", headers=pub,
               params={"hub.mode": "subscribe", "hub.verify_token": "vt", "hub.challenge": "7"})
     assert r.text == "7"
+
+
+def test_proxy_secret_allows_console_behind_caddy(p, monkeypatch):
+    import app.main as m
+    monkeypatch.setattr(m, "PROXY_SECRET", "abc123")
+    c = TestClient(create_app(p))
+    h = {"Host": "agents.example.com", "X-User-Id": "u-country-manager"}
+    assert c.get("/api/health", headers=h).status_code == 404
+    assert c.get("/api/health", headers={**h, "X-Proxy-Auth": "wrong"}).status_code == 404
+    assert c.get("/api/health", headers={**h, "X-Proxy-Auth": "abc123"}).status_code == 200

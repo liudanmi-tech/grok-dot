@@ -19,9 +19,23 @@ def clock():
     return FixedClock(T0)
 
 
+TEST_PG = os.environ.get("NGAP_TEST_DATABASE_URL")  # 设置后在 PostgreSQL 上跑全部测试
+
+
+def _fresh_db() -> str:
+    if not TEST_PG:
+        return ":memory:"
+    import psycopg
+
+    with psycopg.connect(TEST_PG, autocommit=True) as c:
+        c.execute("DROP SCHEMA public CASCADE")
+        c.execute("CREATE SCHEMA public")
+    return TEST_PG
+
+
 @pytest.fixture
 def p(clock):
-    plat = Platform(clock=clock, db_path=":memory:")
+    plat = Platform(clock=clock, db_path=_fresh_db())
     plat.runner.background = False
     return plat
 

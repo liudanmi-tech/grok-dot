@@ -122,33 +122,80 @@ CREATE TABLE IF NOT EXISTS usage (
 
 
 class DB:
-    def __init__(self, path: Path | str):
-        self.path = str(path)
-        if self.path != ":memory:":
-            Path(self.path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self.path, check_same_thread=False, isolation_level=None)
-        self._conn.row_factory = sqlite3.Row
+    """同一套 SQL 跑在 SQLite（本地开发、测试）和 PostgreSQL（服务器）上。
+
+    url 为 postgresql://... 时使用 PostgreSQL，否则视为 SQLite 文件路径（或 :memory:）。
+    POC 为单进程：一个连接 + 进程内锁；审计追加在 PostgreSQL 上另加事务级咨询锁，保证哈希链串行。
+    """
+
+    def __init__(self, url: Path | str):
+        self.url = str(url)
+        self.is_pg = self.url.startswith(("postgresql://", "postgres://"))
         self._lock = threading.RLock()
+        self._connect()
         with self._lock:
-            if self.path != ":memory:":
-                self._conn.execute("PRAGMA journal_mode=WAL")
-            self._conn.executescript(SCHEMA)
+            if self.is_pg:
+                self._conn.execute(PG_SCHEMA)
+            else:
+                if self.url != ":memory:":
+                    self._conn.execute("PRAGMA journal_mode=WAL")
+                self._conn.executescript(SCHEMA)
+
+    def _connect(self) -> None:
+        if self.is_pg:
+            import psycopg
+            from psycopg.rows import dict_row
+
+            self._conn = psycopg.connect(self.url, autocommit=True, row_factory=dict_row)
+        else:
+            if self.url != ":memory:":
+                Path(self.url).parent.mkdir(parents=True, exist_ok=True)
+            self._conn = sqlite3.connect(self.url, check_same_thread=False, isolation_level=None)
+            self._conn.row_factory = sqlite3.Row
 
     @property
     def lock(self) -> threading.RLock:
         return self._lock
 
-    def execute(self, sql: str, params: Iterable[Any] = ()) -> sqlite3.Cursor:
+    def _sql(self, sql: str) -> str:
+        return sql.replace("%", "%%").replace("?", "%s") if self.is_pg else sql
+
+    def _run(self, sql: str, params: Iterable[Any]):
+        try:
+            return self._conn.execute(self._sql(sql), tuple(params))
+        except Exception as e:  # PostgreSQL 连接断开时重连一次（事务中不重试）
+            if self.is_pg and self._conn.closed and not getattr(self, "_in_tx", False):
+                self._connect()
+                return self._conn.execute(self._sql(sql), tuple(params))
+            raise e
+
+    def execute(self, sql: str, params: Iterable[Any] = ()):
         with self._lock:
-            return self._conn.execute(sql, tuple(params))
+            return self._run(sql, params)
+
+    def insert(self, sql: str, params: Iterable[Any] = ()) -> int:
+        """插入并返回自增主键 id。"""
+        with self._lock:
+            if self.is_pg:
+                return self._run(sql + " RETURNING id", params).fetchone()["id"]
+            return self._run(sql, params).lastrowid
 
     def query(self, sql: str, params: Iterable[Any] = ()) -> list[dict]:
         with self._lock:
-            return [dict(r) for r in self._conn.execute(sql, tuple(params)).fetchall()]
+            return [dict(r) for r in self._run(sql, params).fetchall()]
 
     def one(self, sql: str, params: Iterable[Any] = ()) -> dict | None:
         rows = self.query(sql, params)
         return rows[0] if rows else None
+
+    def json_text(self, column: str, key: str) -> str:
+        """取 JSON 文本列中的某个字段（两种数据库写法不同）。"""
+        return f"({column}::jsonb->>'{key}')" if self.is_pg else f"json_extract({column},'$.{key}')"
+
+    def serialize(self, key: int) -> None:
+        """在当前事务内串行化（PostgreSQL 咨询锁，多进程 / 多副本也安全）。"""
+        if self.is_pg:
+            self._run("SELECT pg_advisory_xact_lock(?)", [key])
 
     def transaction(self):
         return _Tx(self)
@@ -160,15 +207,21 @@ class _Tx:
 
     def __enter__(self):
         self.db.lock.acquire()
-        self.db._conn.execute("BEGIN IMMEDIATE")
+        self.db._run("BEGIN" if self.db.is_pg else "BEGIN IMMEDIATE", ())
+        self.db._in_tx = True
         return self.db
 
     def __exit__(self, exc_type, *_):
         try:
-            self.db._conn.execute("ROLLBACK" if exc_type else "COMMIT")
+            self.db._run("ROLLBACK" if exc_type else "COMMIT", ())
         finally:
+            self.db._in_tx = False
             self.db.lock.release()
         return False
+
+
+PG_SCHEMA = (SCHEMA.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "BIGSERIAL PRIMARY KEY")
+             .replace(" REAL", " DOUBLE PRECISION"))
 
 
 def dumps(obj: Any) -> str:

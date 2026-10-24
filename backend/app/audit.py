@@ -32,6 +32,7 @@ class AuditLog:
         if versions or self.versions:
             body["versions"] = {**self.versions, **(versions or {})}
         with self.db.transaction():
+            self.db.serialize(424242)  # 哈希链必须串行追加
             last = self.db.one("SELECT hash FROM audit_events ORDER BY seq DESC LIMIT 1")
             prev = last["hash"] if last else GENESIS
             event = {
@@ -67,7 +68,7 @@ class AuditLog:
 
     def has_tool_call(self, trace_id: str, tool: str, since: str | None = None) -> bool:
         sql = ("SELECT 1 FROM audit_events WHERE trace_id=? AND event_type='tool.call' "
-               "AND json_extract(payload,'$.tool')=?")
+               f"AND {self.db.json_text('payload', 'tool')}=?")
         args: list[Any] = [trace_id, tool]
         if since:
             sql += " AND ts >= ?"

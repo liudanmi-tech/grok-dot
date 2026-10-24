@@ -144,14 +144,14 @@ class WhatsAppGateway:
         return bool(conv.get("last_inbound_at")) and self.clock.now() - parse_iso(conv["last_inbound_at"]) < WINDOW
 
     def _log(self, conv: dict, direction: str, text: str, status: str, **extra: Any) -> int:
-        cur = self.db.execute(
+        new_id = self.db.insert(
             "INSERT INTO wa_messages(conversation_id, direction, wamid, text, status, kind, approval_id, task_id, flags,"
             " created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
             [conv["conversation_id"], direction, extra.get("wamid"), text, status, extra.get("kind", "text"),
              extra.get("approval_id"), extra.get("task_id"), dumps(extra.get("flags") or {}), iso(self.clock.now())])
         self.db.execute("UPDATE wa_conversations SET updated_at=? WHERE conversation_id=?",
                         [iso(self.clock.now()), conv["conversation_id"]])
-        return cur.lastrowid
+        return new_id
 
     # ---------- 入站 ----------
     def handle_webhook(self, payload: dict) -> int:

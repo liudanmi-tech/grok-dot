@@ -30,7 +30,7 @@ class Platform:
                  config_dir: Path = CONFIG_DIR, data_dir: Path = DATA_DIR, db_path: str | None = None):
         self.settings = settings or Settings()
         self.clock = clock or Clock()
-        self.db = DB(db_path or self.settings.db_path)
+        self.db = DB(db_path or self.settings.database_url or self.settings.db_path)
 
         policy_cfg = load_yaml(config_dir / "policy.yaml")
         routing_cfg = load_yaml(config_dir / "model-routing.yaml")

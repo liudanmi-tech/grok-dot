@@ -1,7 +1,9 @@
 """启动入口：uvicorn app.main:app --port 8100（8000 已被本机其他进程占用）。"""
 from __future__ import annotations
 
+import hmac
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -11,6 +13,8 @@ from fastapi.responses import JSONResponse
 from .api import internal, routes, whatsapp
 from .platform import Platform
 
+# 服务器部署时，Caddy 在基本认证通过后加上 X-Proxy-Auth；后端端口本身不对外暴露
+PROXY_SECRET = os.environ.get("NGAP_PROXY_SECRET", "")
 LOCAL_HOSTS = {"localhost", "127.0.0.1", "testserver", "::1", "[::1]"}
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -32,7 +36,8 @@ def create_app(platform: Platform | None = None) -> FastAPI:
         # 经隧道或公网进来的请求（Host 不是本机）只放行 WhatsApp Webhook；
         # 控制台接口目前是 POC 模拟登录，绝不能暴露到公网。
         host = (request.headers.get("host") or "").split(":")[0]
-        if host not in LOCAL_HOSTS and not request.url.path.startswith("/webhooks/"):
+        proxied = bool(PROXY_SECRET) and hmac.compare_digest(request.headers.get("x-proxy-auth", ""), PROXY_SECRET)
+        if host not in LOCAL_HOSTS and not proxied and not request.url.path.startswith("/webhooks/"):
             return JSONResponse({"detail": "not found"}, status_code=404)
         return await call_next(request)
 

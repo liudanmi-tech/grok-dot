@@ -16,7 +16,7 @@
 ```bash
 # 后端（Python 3.11+；示例用 uv）
 cd backend
-uv venv .venv && uv pip install --python .venv/bin/python -r requirements.txt
+uv venv .venv && uv pip install --python .venv/bin/python -r requirements-dev.txt
 .venv/bin/uvicorn app.main:app --port 8100
 
 # 控制台
@@ -34,7 +34,14 @@ npm run dev        # http://localhost:5173 ，/api 代理到 8100
 
 ```bash
 cd backend && .venv/bin/python -m pytest -q
+# 在 PostgreSQL 上跑同一套测试：
+NGAP_TEST_DATABASE_URL=postgresql://user:pass@host:5432/db .venv/bin/python -m pytest -q
 ```
+
+## 部署与演示
+
+- 服务器部署：[docs/DEPLOY.md](docs/DEPLOY.md)（Docker Compose：PostgreSQL + 后端 + Caddy HTTPS + 每日备份）
+- WhatsApp 演示：[docs/DEMO.md](docs/DEMO.md)
 
 ## 目录
 

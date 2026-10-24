@@ -31,12 +31,12 @@ class Outbox:
             row = self.db.one("SELECT id FROM outbox WHERE card_id=?", [card_id])
             self._push(recipient, card)
             return row["id"]
-        cur = self.db.execute(
+        new_id = self.db.insert(
             "INSERT INTO outbox(card_id, channel, recipient, kind, card, created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
             [card_id, channel, recipient, kind, dumps(card), now, now],
         )
         self._push(recipient, card)
-        return cur.lastrowid
+        return new_id
 
     def list(self, recipient: str | None = None, limit: int = 100) -> list[dict]:
         sql, args = "SELECT * FROM outbox", []

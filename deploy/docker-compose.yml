@@ -1,0 +1,72 @@
+# 单机部署：PostgreSQL + 后端 + Caddy（HTTPS、控制台、Webhook）+ 每日备份
+# 用法：cd deploy && docker compose up -d --build
+name: grokdot
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ngap
+      POSTGRES_USER: ngap
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?在 deploy/.env 中设置 POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--locale=C --encoding=UTF8"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ngap -d ngap"]
+      interval: 10s
+      retries: 10
+
+  backend:
+    build: ../backend
+    restart: unless-stopped
+    env_file: ../backend/.env          # 模型与 WhatsApp 密钥
+    environment:
+      NGAP_DATABASE_URL: postgresql://ngap:${POSTGRES_PASSWORD}@db:5432/ngap
+      NGAP_PROXY_SECRET: ${PROXY_SECRET:?在 deploy/.env 中设置 PROXY_SECRET}
+    depends_on:
+      db:
+        condition: service_healthy
+    # 容器加固：只读根文件系统、去掉所有 Linux 能力、禁止提权；不对宿主机暴露端口
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+
+  caddy:
+    build:
+      context: ..
+      dockerfile: deploy/Caddy.Dockerfile
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      DOMAIN: ${DOMAIN:?在 deploy/.env 中设置 DOMAIN}
+      CONSOLE_USER: ${CONSOLE_USER:-admin}
+      CONSOLE_PASSWORD_HASH: ${CONSOLE_PASSWORD_HASH:?在 deploy/.env 中设置 CONSOLE_PASSWORD_HASH}
+      PROXY_SECRET: ${PROXY_SECRET}
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [backend]
+
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+    entrypoint: >
+      sh -c 'while true; do
+      pg_dump -h db -U ngap ngap | gzip > /backups/ngap-$$(date +%Y%m%d-%H%M).sql.gz;
+      find /backups -name "*.sql.gz" -mtime +14 -delete;
+      sleep 86400; done'
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
