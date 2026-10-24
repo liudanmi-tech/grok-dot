@@ -341,3 +341,28 @@ main.wide { max-width: none; }
 .o3-screen-title { color: #93c5fd; font-weight: 700; margin-bottom: 4px; }
 .o3-msg { border-top: 1px solid #1e293b; padding: 3px 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .o3-msg b { color: #fbbf24; margin-right: 6px; }
 .o3-sign { background: #0f172a; color: #fff; padding: 4px 10px; border-radius: 6px; font: 600 13px -apple-system, "PingFang SC", sans-serif; }
+.o3-card { width: 300px; background: #fff; color: #0f172a; border-radius: 16px; overflow: hidden; font: 12.5px/1.5 -apple-system, "PingFang SC", sans-serif;
+  box-shadow: 0 18px 40px rgba(15,23,42,.28), 0 0 0 1px rgba(15,23,42,.06); transform: perspective(700px) rotateX(6deg); transform-origin: bottom center;
+  animation: o3pop .18s ease-out; cursor: default; }
+@keyframes o3pop { from { opacity: 0; transform: perspective(700px) rotateX(18deg) translateY(10px); } }
+.o3-card-head { display: flex; gap: 10px; align-items: center; padding: 10px 12px; color: #fff; }
+.o3-av.lg { width: 34px; height: 34px; border-radius: 9px; font-size: 12px; background: rgba(255,255,255,.22); }
+.o3-card-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.o3-card-sub { font-size: 11px; opacity: .85; }
+.o3-level { margin-left: auto; background: rgba(255,255,255,.22); border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.o3-x { background: none; border: 0; color: #fff; font-size: 18px; cursor: pointer; line-height: 1; padding: 0 2px; }
+.o3-card-body { padding: 8px 12px 4px; }
+.o3-sec { padding: 6px 0; border-bottom: 1px solid #f1f5f9; } .o3-sec:last-child { border-bottom: 0; }
+.o3-label { font-size: 11px; font-weight: 700; color: #64748b; margin-bottom: 2px; letter-spacing: .02em; }
+.o3-muted { color: #64748b; font-size: 11.5px; }
+.o3-clip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.o3-pbar { height: 5px; background: #e2e8f0; border-radius: 4px; overflow: hidden; margin: 4px 0 2px; } .o3-pbar i { display: block; height: 100%; background: #3b82f6; }
+.o3-pbar.xp i { background: #f59e0b; }
+.o3-row2 { display: flex; gap: 6px; align-items: center; padding: 2px 0; cursor: pointer; } .o3-row2:hover .o3-clip { color: #4f46e5; }
+.o3-dot { width: 7px; height: 7px; border-radius: 50%; background: #94a3b8; flex: none; }
+.o3-dot.delivered, .o3-dot.accepted { background: #10b981; } .o3-dot.failed { background: #ef4444; } .o3-dot.awaiting_approval, .o3-dot.needs_human { background: #f59e0b; }
+.o3-stats { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: #475569; } .o3-stats b { font-size: 14px; color: #0f172a; margin-right: 2px; }
+.o3-card-foot { display: flex; gap: 6px; padding: 8px 12px 12px; }
+.o3-btn { flex: 1; border: 1px solid #e2e8f0; background: #fff; border-radius: 9px; padding: 6px 8px; cursor: pointer; font-size: 12.5px; font-weight: 600; color: #0f172a; }
+.o3-btn.primary { background: #4f46e5; border-color: #4f46e5; color: #fff; } .o3-btn:disabled { opacity: .5; cursor: default; }
+.o3-clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
