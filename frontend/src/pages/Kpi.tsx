@@ -1,14 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Moon, Sun, Users } from "lucide-react";
+import { ArrowUp, Moon, Sun } from "lucide-react";
 import { post } from "../api";
 import { usePoll } from "../hooks";
 import { ActivityPill, Avatar, countryOf, DeliverableCard, Markdown, MARKETS, TaskPill, timeAgo } from "../ui";
-import { KpiBar, KpiNumbers, RagPill } from "./Cockpit";
+import { RagPill } from "./Cockpit";
 
 const RATING: Record<string, [string, string]> = { good: ["good", "超出预期"], ok: ["", "符合预期"], behind: ["bad", "落后"] };
 
-export default function Kpi({ id, me, team, go, onChange, switchUser }: any) {
+export default function Kpi({ id, me, team, go, onChange, switchUser, extra }: any) {
   const { data: k, error, reload } = usePoll<any>(`/kpis/${id}`, 2500);
+  const [tab, setTab] = useState("overview");
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { data: clock } = usePoll<any>("/demo/clock", 5000);
@@ -26,93 +27,159 @@ export default function Kpi({ id, me, team, go, onChange, switchUser }: any) {
   const todayReview = review && k.today?.review ? review : null;
   const week = k.weeks.find((w: any) => w.week_no === k.week_no);
 
+  const tabs: [string, string, string | null][] = [
+    ["overview", "概览", null],
+    ["standup", "晨会", todayStandup ? "✓" : null],
+    ["review", "晚会", todayReview ? (todayReview.status === "done" ? "✓" : "待主持") : null],
+    ["weeks", "周计划", week && week.status !== "confirmed" ? "草稿" : null],
+    ["channel", "团队群", String(k.channel.length || "")],
+  ];
+  const squadCard = (
+    <div className="card">
+      <div className="card-head"><h2>小队</h2><span className="muted small">{k.squad_cards.length} 名数字员工 · 点成员看工位</span></div>
+      <div className="lanes">
+        {k.squad_cards.map((b: any) => (
+          <div key={b.id} className="lane" onClick={() => go(`bot/${b.id}`)}>
+            <div className="row" style={{ flexWrap: "nowrap" }}><Avatar bot={b} size="sm" /><b className="ellipsis">{b.display_name}</b>
+              <span style={{ marginLeft: "auto" }}><ActivityPill a={b.activity} /></span></div>
+            <div className="muted small lane-note">{b.current ? b.current.goal
+              : b.activity === "needs_you" ? `有 ${b.attention + b.approvals} 件事等你处理`
+              : b.activity === "off_duty" ? `已下班 · 今日完成 ${b.done_today} 项`
+              : b.activity === "paused" ? "已暂停，不接新任务" : `待命中 · 今日完成 ${b.done_today} 项`}</div>
+            <div className="bar"><i style={{ width: `${b.current?.progress_total ? (100 * b.current.progress_done) / b.current.progress_total : b.current ? 5 : b.done_today ? 100 : 0}%`,
+              background: b.current ? undefined : "rgba(0,0,0,.12)" }} /></div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <>
-      <div className="card" style={{ marginBottom: 14 }}>
-        <div className="row between">
-          <div className="row"><h1 style={{ margin: 0, fontSize: 20 }}>{k.title}</h1><RagPill rag={k.progress.rag} />
-            {k.market && <span className="tag">{k.market.name} · {k.market.currency} · {k.market.city}时间</span>}</div>
-          <span className="muted small">下达 {k.created_by_name} · 负责人 <b>{k.owner_name || "待认领"}</b> · {k.start_date} ~ {k.end_date} · 第 {k.week_no} 周</span>
-        </div>
-        <KpiBar p={k.progress} />
-        <KpiNumbers p={k.progress} />
-        <Chart series={k.progress.series} />
-        {err && <div className="err">{err}</div>}
-      </div>
-
+      <Hero k={k} />
+      {err && <div className="err">{err}</div>}
       {k.status !== "active" ? <Claim k={k} me={me} team={team} run={run} switchUser={switchUser} onHired={onChange} /> : (
-        <div className="split">
-          <div className="stack">
-            <div className="card">
-              <div className="card-head">
-                <h2><Users size={15} /> 小队</h2>
-                <span className="muted small">点成员看工位与工作流</span>
-              </div>
-              <div className="lanes">
-                {k.squad_cards.map((b: any) => (
-                  <div key={b.id} className="lane" onClick={() => go(`bot/${b.id}`)}>
-                    <div className="row" style={{ flexWrap: "nowrap" }}><Avatar bot={b} size="sm" /><b>{b.display_name}</b>
-                      <span style={{ marginLeft: "auto" }}><ActivityPill a={b.activity} /></span></div>
-                    <div className="muted small lane-note">{b.current ? b.current.goal
-                      : b.activity === "needs_you" ? `有 ${b.attention + b.approvals} 件事等你处理`
-                      : b.activity === "off_duty" ? `已下班 · 今日完成 ${b.done_today} 项`
-                      : b.activity === "paused" ? "已暂停，不接新任务" : `待命中 · 今日完成 ${b.done_today} 项`}</div>
-                    <div className="bar"><i style={{ width: `${b.current?.progress_total ? (100 * b.current.progress_done) / b.current.progress_total : b.current ? 5 : b.done_today ? 100 : 0}%`,
-                      background: b.current ? undefined : "var(--line)" }} /></div>
-                  </div>
-                ))}
-              </div>
-            </div>
+        <>
+          <div className="tabs kpi-tabs">
+            {tabs.map(([key, label, badge]) => (
+              <button key={key} className={tab === key ? "on" : ""} onClick={() => setTab(key)}>
+                {label}{badge && <span className={`tab-badge ${badge === "待主持" || badge === "草稿" ? "warn" : ""}`}>{badge}</span>}
+              </button>
+            ))}
+          </div>
 
+          {tab === "overview" && (
+            <div className="split">
+              <div className="stack">
+                {squadCard}
+                <Initiatives k={k} week={week} byId={byId} go={go} />
+                {extra}
+              </div>
+              <Channel k={k} byId={byId} id={id} run={run} />
+            </div>
+          )}
+
+          {tab === "standup" && (
             <div className="card">
               <div className="card-head">
-                <h2><Sun size={15} /> 今日晨会</h2>
+                <h2><Sun size={16} /> 今日晨会</h2>
                 {!todayStandup && (owner || me?.roles?.includes("country_manager")) && (
-                  <button className="btn sm" disabled={busy} onClick={() => { setBusy(true); run(() => post(`/kpis/${id}/standup`)).finally(() => setBusy(false)); }}>
+                  <button className="btn primary sm" disabled={busy} onClick={() => { setBusy(true); run(() => post(`/kpis/${id}/standup`)).finally(() => setBusy(false)); }}>
                     {busy ? "总调度正在开会…" : "现在开晨会"}</button>
                 )}
               </div>
-              {!todayStandup ? <div className="muted">{busy ? "总调度正在看 KPI、点评昨天、给每个 bot 派活（约半分钟）…" : "07:30 总调度自动主持晨会。也可以点右上角立即开。"}</div> : <Standup m={todayStandup} byId={byId} go={go} />}
+              {!todayStandup ? <Empty icon="☀️" text={busy ? "总调度正在看 KPI、点评昨天、给每个 bot 派活（约半分钟）…" : "07:30 总调度自动主持晨会，也可以点右上角立即开。"} />
+                : <Standup m={todayStandup} byId={byId} go={go} />}
             </div>
+          )}
 
-            <div className="card">
-              <div className="card-head">
-                <h2><Moon size={15} /> 今晚复盘</h2>
-                {!todayReview && todayStandup && <button className="btn sm" onClick={() => run(() => post(`/kpis/${id}/review/prepare`))}>现在准备材料</button>}
+          {tab === "review" && (
+            <div className="stack">
+              <div className="card">
+                <div className="card-head">
+                  <h2><Moon size={16} /> 今晚复盘</h2>
+                  {!todayReview && todayStandup && <button className="btn sm" onClick={() => run(() => post(`/kpis/${id}/review/prepare`))}>现在准备材料</button>}
+                </div>
+                {!todayReview ? <Empty icon="🌙" text={clock?.phase === "review" && todayStandup ? "总调度正在整理每个 bot 今天的完成情况（约 1 分钟）…"
+                  : "18:00 系统备好每个 bot 的完成情况，由主管主持点评；提交后日报自动发给领导。"} />
+                  : <Review m={todayReview} byId={byId} owner={owner} run={run} id={id} />}
               </div>
-              {!todayReview ? <div className="muted">{clock?.phase === "review" && todayStandup ? "总调度正在整理每个 bot 今天的完成情况（约 1 分钟）…"
-                : "18:00 系统备好每个 bot 的完成情况，由主管主持点评；提交后日报自动发给领导。"}</div>
-                : <Review m={todayReview} byId={byId} owner={owner} run={run} id={id} />}
+              <History k={k} />
             </div>
+          )}
 
-            <Initiatives k={k} week={week} byId={byId} go={go} />
-
+          {tab === "weeks" && (
             <div className="card">
-              <div className="card-head"><h2>周分解</h2>
+              <div className="card-head"><h2>周计划</h2>
                 {week && week.status !== "confirmed" && owner && <button className="btn sm primary" onClick={() => run(() => post(`/kpis/${id}/weeks/${week.week_no}/confirm`, {}))}>确认第 {week.week_no} 周</button>}
               </div>
-              {!k.weeks.length && <div className="muted">总调度正在把 KPI 分解成第一周目标（约半分钟）…</div>}
+              {!k.weeks.length && <Empty icon="🗓️" text="总调度正在把 KPI 分解成第一周目标（约半分钟）…" />}
               {k.weeks.map((w: any) => (
-                <div key={w.week_no} style={{ marginBottom: 10 }}>
+                <div key={w.week_no} className="week-block">
                   <div className="row"><b>第 {w.week_no} 周</b><span className="muted small">{w.start_date} ~ {w.end_date} · 需完成 {w.target_units} 台</span>
                     <span className={`pill ${w.status === "confirmed" ? "good" : "warn"}`}>{w.status === "confirmed" ? "已确认" : "草稿 · 照常执行"}</span></div>
-                  {w.brief && <div className="muted small">{w.brief}</div>}
+                  {w.brief && <div className="muted small" style={{ margin: "4px 0 6px" }}>{w.brief}</div>}
                   <table className="tbl"><tbody>
                     {w.items.map((i: any) => (
-                      <tr key={i.bot_id}><td style={{ width: 150 }}><span className="row" style={{ flexWrap: "nowrap" }}><Avatar bot={byId[i.bot_id]} size="sm" dot={false} />{byId[i.bot_id]?.display_name || i.bot_id}</span></td>
-                        <td>{i.objective}</td><td className="muted small" style={{ width: 140 }}>{i.measure}</td></tr>
+                      <tr key={i.bot_id}><td style={{ width: 170 }}><span className="row" style={{ flexWrap: "nowrap" }}><Avatar bot={byId[i.bot_id]} size="sm" dot={false} />{byId[i.bot_id]?.display_name || i.bot_id}</span></td>
+                        <td>{i.objective}</td><td className="muted small" style={{ width: 170 }}>{i.measure}</td></tr>
                     ))}
                   </tbody></table>
                 </div>
               ))}
             </div>
+          )}
 
-            <History k={k} />
-          </div>
-          <Channel k={k} byId={byId} id={id} run={run} />
-        </div>
+          {tab === "channel" && <div className="channel-full"><Channel k={k} byId={byId} id={id} run={run} /></div>}
+        </>
       )}
     </>
+  );
+}
+
+function Empty({ icon, text }: { icon: string; text: string }) {
+  return <div className="empty"><span>{icon}</span><div>{text}</div></div>;
+}
+
+// 主视图：环形完成度 + 关键数字 + 每日走势
+function Hero({ k }: any) {
+  const p = k.progress;
+  const pct = Math.min(100, (100 * p.actual) / Math.max(1, p.target_total));
+  const R = 54, C = 2 * Math.PI * R;
+  const color = p.rag === "red" ? "#ff453a" : p.rag === "amber" ? "#ff9f0a" : p.rag === "green" ? "#30d158" : "#0a84ff";
+  return (
+    <div className="card hero">
+      <div className="hero-ring">
+        <svg width="136" height="136" viewBox="0 0 136 136">
+          <circle cx="68" cy="68" r={R} fill="none" stroke="rgba(0,0,0,.07)" strokeWidth="12" />
+          <circle cx="68" cy="68" r={R} fill="none" stroke={color} strokeWidth="12" strokeLinecap="round"
+            strokeDasharray={`${(C * Math.max(pct, 0.5)) / 100} ${C}`} transform="rotate(-90 68 68)" />
+        </svg>
+        <div className="hero-ring-label"><b>{pct < 10 ? pct.toFixed(1) : Math.round(pct)}%</b><span>总目标完成</span></div>
+      </div>
+      <div className="hero-main">
+        <div className="row" style={{ gap: 8 }}>
+          <span className="tag">{k.market?.name || "尼日利亚"} · {k.market?.currency || "NGN"}</span>
+          <RagPill rag={p.rag} />
+          {k.status !== "active" && <span className="pill warn">待认领</span>}
+        </div>
+        <div className="hero-title">{k.title}</div>
+        <div className="muted small">负责人 {k.owner_name || "待认领"} · 下达 {k.created_by_name} · {k.start_date} – {k.end_date} · 第 {k.week_no} 周 · 按{k.market?.city || "拉各斯"}时间</div>
+        <div className="hero-stats">
+          <div><span>实际 / 目标</span><b>{p.actual.toLocaleString()}<small> / {p.target_total.toLocaleString()} 台</small></b></div>
+          <div><span>达成节奏</span><b style={{ color: p.pace == null ? undefined : color }}>{p.pace == null ? "—" : `${Math.round(p.pace * 100)}%`}</b></div>
+          <div><span>日均较基线</span><b>{p.lift_pct == null ? "—" : `${p.lift_pct > 0 ? "+" : ""}${p.lift_pct}%`}</b></div>
+          <div><span>进度</span><b>{p.days_elapsed}<small> / {p.days_total} 天</small></b></div>
+        </div>
+      </div>
+      <div className="hero-chart">
+        <div className="row between small muted"><span>每日终端销量</span>
+          <span className="legend"><i className="lg-bar" />实际 <i className="lg-target" />目标 {p.target_daily} <i className="lg-base" />基线</span></div>
+        {p.days_elapsed ? <Chart series={p.series} /> : (
+          <div className="empty compact"><span>📈</span><div>销量数据次日更新<br /><b>基线日均 {Math.round(k.baseline_daily)} 台 → 目标 {p.target_daily} 台</b></div></div>
+        )}
+      </div>
+    </div>
   );
 }
 

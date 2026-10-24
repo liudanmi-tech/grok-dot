@@ -65,38 +65,43 @@ export default function Goals({ id, me, team, go, onChange, switchUser, autoNew 
       ) : (
         <>
           <div className="kpi-strip">
-            {all.map((k: any) => (
-              <div key={k.kpi_id} className={`kpi-tile ${k.kpi_id === selected ? "on" : ""} ${k.parent_id ? "child" : ""}`} onClick={() => go(`goals/${k.kpi_id}`)}>
-                <div className="row" style={{ flexWrap: "nowrap" }}><span className="tag">{k.market?.name || "尼日利亚"}</span><b className="ellipsis">{k.title}</b>
-                  <span style={{ marginLeft: "auto" }}><RagPill rag={k.progress.rag} /></span></div>
-                <KpiBar p={k.progress} />
-                <div className="row between small muted">
-                  <span>{k.progress.actual.toLocaleString()} / {k.progress.target_total.toLocaleString()} 台 · 节奏 {k.progress.pace == null ? "—" : `${Math.round(k.progress.pace * 100)}%`}</span>
-                  <span>{k.status === "active" ? k.owner_name : `待 ${k.owner_name || "负责人"} 认领`}</span>
+            {all.map((k: any) => {
+              const pct = Math.min(100, (100 * k.progress.actual) / Math.max(1, k.progress.target_total));
+              return (
+                <div key={k.kpi_id} className={`kpi-tile ${k.kpi_id === selected ? "on" : ""} ${k.parent_id ? "child" : ""}`} onClick={() => go(`goals/${k.kpi_id}`)}>
+                  <div className="kpi-tile-top">
+                    <span className="flag">{k.market?.code === "ID" ? "🇮🇩" : "🇳🇬"}</span>
+                    <span className="kpi-tile-title">{k.title}</span>
+                    <RagPill rag={k.progress.rag} />
+                  </div>
+                  <div className="kpi-tile-num"><b>{k.progress.actual.toLocaleString()}</b><span> / {k.progress.target_total.toLocaleString()} 台</span>
+                    <em>{pct < 10 ? pct.toFixed(1) : Math.round(pct)}%</em></div>
+                  <KpiBar p={k.progress} />
+                  <div className="kpi-tile-foot">
+                    <span>{k.status === "active" ? k.owner_name : `待 ${k.owner_name || "负责人"} 认领`}</span>
+                    <span className={`chip ${k.today?.standup ? "ok" : ""}`}>晨会</span>
+                    <span className={`chip ${k.today?.review === "done" ? "ok" : k.today?.review ? "wait" : ""}`}>晚会</span>
+                    <span>第 {k.progress.days_elapsed}/{k.progress.days_total} 天</span>
+                  </div>
                 </div>
-                <div className="row small" style={{ gap: 6 }}>
-                  <span className={`pill ${k.today?.standup ? "good" : ""}`}>晨会{k.today?.standup ? "✓" : "—"}</span>
-                  <span className={`pill ${k.today?.review === "done" ? "good" : k.today?.review ? "warn" : ""}`}>晚会{k.today?.review === "done" ? "✓" : k.today?.review ? "待主持" : "—"}</span>
-                  <span className="muted">第 {k.progress.days_elapsed}/{k.progress.days_total} 天</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {mode === "3d" ? (selected ? <Suspense fallback={<div className="card muted">加载 3D 办公室…</div>}><Office3D key={selected} kpiId={selected} go={go} /></Suspense>
             : <Office3DPlaceholder />) : (
-            <>
-              <div className="card" style={{ marginBottom: 14 }}>
-                <div className="card-head">
-                  <h2>今日进展</h2>
-                  <span className="muted small">{today.data ? `${convs.length} 个任务对话 · ${today.data.deliverables} 份交付` : ""}</span>
+            selected && <Kpi key={selected} id={selected} me={me} team={team} go={go} onChange={() => { reload(); onChange?.(); }} switchUser={switchUser}
+              extra={(
+                <div className="card">
+                  <div className="card-head">
+                    <h2>今日任务对话</h2>
+                    <span className="muted small">{today.data ? `全团队 ${convs.length} 个 · ${today.data.deliverables} 份交付` : ""}</span>
+                  </div>
+                  {!convs.length && <div className="muted">今天还没有任务对话。晨会派活或新建对话后会出现在这里。</div>}
+                  {(showAll ? convs : convs.slice(0, 4)).map((c: any) => <ConvRow key={c.task_id} c={c} byId={byId} go={go} />)}
+                  {convs.length > 4 && <button className="btn ghost sm" onClick={() => setShowAll(!showAll)}>{showAll ? "收起" : `展开全部 ${convs.length} 个`}</button>}
                 </div>
-                {!convs.length && <div className="muted">今天还没有任务对话。晨会派活或新建对话后会出现在这里。</div>}
-                {(showAll ? convs : convs.slice(0, 3)).map((c: any) => <ConvRow key={c.task_id} c={c} byId={byId} go={go} />)}
-                {convs.length > 3 && <a className="small" style={{ cursor: "pointer" }} onClick={() => setShowAll(!showAll)}>{showAll ? "收起" : `展开全部 ${convs.length} 个 →`}</a>}
-              </div>
-              {selected && <Kpi key={selected} id={selected} me={me} team={team} go={go} onChange={() => { reload(); onChange?.(); }} switchUser={switchUser} />}
-            </>
+              )} />
           )}
         </>
       )}

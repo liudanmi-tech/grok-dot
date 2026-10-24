@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowUp, CheckSquare, FileText, ListChecks, Sparkles, Target } from "lucide-react";
 import { fmtTime, post } from "../api";
 import { usePoll } from "../hooks";
-import { Avatar, DeliverableCard, Markdown, TaskPill, timeAgo } from "../ui";
+import { Avatar, countryOf, DeliverableCard, Markdown, TaskPill, timeAgo } from "../ui";
 import { MemberStack } from "./Chats";
 
 export default function Chat({ id, team, users, go }: any) {
@@ -200,14 +200,16 @@ function Composer({ t, team, run, draft }: any) {
       </div>
     ) : <div className="muted small" style={{ padding: 8 }}>成员执行中，完成后可验收或要求修改。</div>;
   }
-  const members = team.filter((b: any) => b.state === "active" && b.channel === "内部" && b.template !== "chief-of-staff");
+  // 只列本对话所在市场的成员（跨市场成员没有该国数据权限）
+  const market = countryOf(t.requester_scope);
+  const members = team.filter((b: any) => b.state === "active" && b.channel === "内部" && b.template !== "chief-of-staff" && countryOf(b.scope) === market);
   const send = () => text.trim() && run(async () => {
     await post(`/tasks/${t.task_id}/followup`, { text: text.trim(), bot_id: to || undefined, from_action: action || undefined });
     setText(""); setTo(null); setAction(null);
   });
   return (
     <div className="chat-composer">
-      <div className="row" style={{ gap: 4 }}>
+      <div className="mention-strip">
         <span className={`mention ${!to ? "on" : ""}`} onClick={() => setTo(null)}><Sparkles size={12} style={{ marginLeft: 4 }} />总调度安排</span>
         {members.map((b: any) => (
           <span key={b.id} className={`mention ${to === b.id ? "on" : ""}`} onClick={() => setTo(b.id)}><Avatar bot={b} size="sm" dot={false} />@{b.display_name}</span>
