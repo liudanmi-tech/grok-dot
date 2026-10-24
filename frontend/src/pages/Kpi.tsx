@@ -7,7 +7,7 @@ import { KpiBar, KpiNumbers, RagPill } from "./Cockpit";
 
 const RATING: Record<string, [string, string]> = { good: ["good", "超出预期"], ok: ["", "符合预期"], behind: ["bad", "落后"] };
 
-export default function Kpi({ id, me, team, go, onChange }: any) {
+export default function Kpi({ id, me, team, go, onChange, switchUser }: any) {
   const { data: k, error, reload } = usePoll<any>(`/kpis/${id}`, 2500);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -39,7 +39,7 @@ export default function Kpi({ id, me, team, go, onChange }: any) {
         {err && <div className="err">{err}</div>}
       </div>
 
-      {k.status !== "active" ? <Claim k={k} me={me} team={team} run={run} /> : (
+      {k.status !== "active" ? <Claim k={k} me={me} team={team} run={run} switchUser={switchUser} onHired={onChange} /> : (
         <div className="split">
           <div className="stack">
             <div className="card">
@@ -83,6 +83,7 @@ export default function Kpi({ id, me, team, go, onChange }: any) {
               <div className="card-head"><h2>周分解</h2>
                 {week && week.status !== "confirmed" && owner && <button className="btn sm primary" onClick={() => run(() => post(`/kpis/${id}/weeks/${week.week_no}/confirm`, {}))}>确认第 {week.week_no} 周</button>}
               </div>
+              {!k.weeks.length && <div className="muted">总调度正在把 KPI 分解成第一周目标（约半分钟）…</div>}
               {k.weeks.map((w: any) => (
                 <div key={w.week_no} style={{ marginBottom: 10 }}>
                   <div className="row"><b>第 {w.week_no} 周</b><span className="muted small">{w.start_date} ~ {w.end_date} · 需完成 {w.target_units} 台</span>
@@ -239,26 +240,107 @@ function Channel({ k, byId, id, run }: any) {
   );
 }
 
-function Claim({ k, me, team, run }: any) {
+function Claim({ k, me, team, run, switchUser, onHired }: any) {
+  const lib = usePoll<any[]>("/bot-templates", 0);
+  const region = k.filter?.region?.[0] as string | undefined;
+  const fits = (b: any) => !region || !b.scope?.region || b.scope.region.includes(region);
   const members = team.filter((b: any) => b.state === "active" && b.channel === "内部" && b.template !== "chief-of-staff");
-  const [sel, setSel] = useState<string[]>(members.map((b: any) => b.id));
+  const [step, setStep] = useState(1);
+  const [sel, setSel] = useState<string[] | null>(null);
+  const [hiring, setHiring] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const chosen: string[] = sel ?? members.filter(fits).map((b: any) => b.id);
   const mine = !k.owner || me?.id === k.owner;
+  const p = k.progress;
+  const hiredTpl = new Set(members.filter(fits).map((b: any) => b.template));
+  const recruitable = (lib.data || []).filter((t: any) => t.channel === "内部" && t.id !== "chief-of-staff" && !hiredTpl.has(t.id));
+  const hire = (t: any) => run(async () => {
+    setHiring(t.id);
+    try {
+      const b = await post("/bots", { template: t.id, region });
+      setSel([...chosen, b.id]); onHired?.(); lib.reload();
+    } finally { setHiring(null); }
+  });
+  const toggle = (id: string) => setSel(chosen.includes(id) ? chosen.filter((x) => x !== id) : [...chosen, id]);
+
+  if (!mine) {
+    return (
+      <div className="card">
+        <h2>等待 {k.owner_name} 接受这个 KPI</h2>
+        <p className="muted">KPI 由 {k.created_by_name} 下达给 {k.owner_name}。负责人接受后组建 bot 小队，总调度再把目标分解到每周、每天。</p>
+        <button className="btn primary" onClick={() => switchUser(k.owner)}>切换为 {k.owner_name}，去接受</button>
+      </div>
+    );
+  }
   return (
     <div className="card">
-      <h2>认领 KPI 并组建 bot 小队</h2>
-      <p className="muted">认领后，总调度会把 KPI 分解成每周目标，每天 07:30 主持晨会给小队派活。</p>
-      <div className="row">
-        {members.map((b: any) => (
-          <span key={b.id} className={`mention ${sel.includes(b.id) ? "on" : ""}`}
-            onClick={() => setSel(sel.includes(b.id) ? sel.filter((x) => x !== b.id) : [...sel, b.id])}>
-            <Avatar bot={b} size="sm" dot={false} />{b.display_name}
-          </span>
+      <div className="wizard">
+        {["接受 KPI", "组建 bot 小队", "分解并开工"].map((t, i) => (
+          <div key={t} className={`wz ${step === i + 1 ? "on" : step > i + 1 ? "done" : ""}`}><span>{step > i + 1 ? "✓" : i + 1}</span>{t}</div>
         ))}
       </div>
-      <div style={{ marginTop: 10 }}>
-        {mine ? <button className="btn primary" disabled={!sel.length} onClick={() => run(() => post(`/kpis/${k.kpi_id}/claim`, { squad: sel }))}>认领并开工</button>
-          : <span className="muted">这个 KPI 指定给了 {k.owner_name}，请切换到该用户认领。</span>}
-      </div>
+
+      {step === 1 && (
+        <>
+          <h2>{k.created_by_name} 给你下达了一个 KPI</h2>
+          <table className="tbl"><tbody>
+            <tr><td style={{ width: 140 }} className="muted">目标</td><td><b>{k.title}</b></td></tr>
+            <tr><td className="muted">范围</td><td>{(k.filter.brand || ["全部品牌"]).join("/")} · {(k.filter.region || ["全国"]).join("/")} · 终端销量</td></tr>
+            <tr><td className="muted">基线 → 目标</td><td>日均 {Math.round(k.baseline_daily)} 台 → {p.target_daily} 台（+{k.uplift_pct}%），周期合计 {p.target_total.toLocaleString()} 台</td></tr>
+            <tr><td className="muted">周期</td><td>{k.start_date} ~ {k.end_date}（{p.days_total} 天）</td></tr>
+            <tr><td className="muted">考核方式</td><td>以销量数据为准，每天晨会派活、晚会复盘，日报自动上报给 {k.created_by_name}</td></tr>
+          </tbody></table>
+          <div className="row" style={{ marginTop: 12 }}><button className="btn primary" onClick={() => setStep(2)}>接受 KPI</button></div>
+        </>
+      )}
+
+      {step === 2 && (
+        <>
+          <h2>组建 bot 小队</h2>
+          <p className="muted">选择已有成员，或从智能体库为这个 KPI 招募新成员{region ? `（数据权限自动限定在 ${region}）` : ""}。</p>
+          <h3>团队已有成员</h3>
+          <div className="row">
+            {members.map((b: any) => {
+              const ok = fits(b);
+              return (
+                <span key={b.id} className={`mention ${chosen.includes(b.id) ? "on" : ""}`} style={ok ? undefined : { opacity: .45, cursor: "not-allowed" }}
+                  title={ok ? "" : `负责 ${b.scope.region.join("/")}，数据范围与本 KPI 不重合`} onClick={() => ok && toggle(b.id)}>
+                  <Avatar bot={b} size="sm" dot={false} />{b.display_name}
+                </span>
+              );
+            })}
+          </div>
+          {recruitable.length > 0 && <h3>从智能体库招募</h3>}
+          <div className="lanes">
+            {recruitable.map((t: any) => (
+              <div key={t.id} className="lane" style={{ cursor: "default" }}>
+                <div className="row" style={{ flexWrap: "nowrap" }}><Avatar bot={{ color: t.color, display_name: t.name }} size="sm" dot={false} /><b>{t.name}</b></div>
+                <div className="small lane-goal">{t.summary}</div>
+                <button className="btn sm" disabled={hiring === t.id} onClick={() => hire(t)}>{hiring === t.id ? "招募中…" : `招募${region ? ` · ${region}` : ""}`}</button>
+              </div>
+            ))}
+          </div>
+          <div className="row" style={{ marginTop: 12 }}>
+            <button className="btn" onClick={() => setStep(1)}>上一步</button>
+            <button className="btn primary" disabled={!chosen.length} onClick={() => setStep(3)}>下一步（已选 {chosen.length} 名）</button>
+          </div>
+        </>
+      )}
+
+      {step === 3 && (
+        <>
+          <h2>分解并开工</h2>
+          <p className="muted">确认后，总调度把 KPI 分解成第一周每个 bot 的周目标（约半分钟），之后每天 07:30 晨会派活。周计划先按草稿执行，你随时可以确认或调整。</p>
+          <div className="row">
+            {chosen.map((id) => { const b = team.find((x: any) => x.id === id); return b && <span key={id} className="mention on"><Avatar bot={b} size="sm" dot={false} />{b.display_name}</span>; })}
+          </div>
+          <div className="row" style={{ marginTop: 12 }}>
+            <button className="btn" onClick={() => setStep(2)}>上一步</button>
+            <button className="btn primary" disabled={busy} onClick={() => { setBusy(true); run(() => post(`/kpis/${k.kpi_id}/claim`, { squad: chosen })).finally(() => setBusy(false)); }}>
+              {busy ? "提交中…" : "确认小队，开始分解"}</button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

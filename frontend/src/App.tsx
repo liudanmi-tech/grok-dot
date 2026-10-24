@@ -96,7 +96,7 @@ export default function App() {
         {page === "home" && <CommandCenter me={me} team={sortTeam(team.data)} ov={ov.data} reload={() => { team.reload(); ov.reload(); }} go={go} />}
         {page === "bot" && route[1] && <Member id={route[1]} go={go} onChange={() => team.reload()} team={team.data || []} />}
         {page === "cockpit" && <Cockpit me={me} go={go} onChange={() => kpis.reload()} switchUser={(id: string) => { setCurrentUser(id); setUser(id); }} autoNew={route[1] === "new"} />}
-        {page === "kpi" && route[1] && <Kpi id={route[1]} me={me} team={team.data || []} go={go} onChange={() => kpis.reload()} />}
+        {page === "kpi" && route[1] && <Kpi id={route[1]} me={me} team={team.data || []} go={go} onChange={() => { kpis.reload(); team.reload(); }} switchUser={(id: string) => { setCurrentUser(id); setUser(id); }} />}
         {page === "library" && <Library go={go} onHired={() => team.reload()} />}
         {page === "tasks" && <Tasks focus={route[1] || null} setFocus={(id) => go(id ? `tasks/${id}` : "tasks")} />}
         {page === "approvals" && <Approvals />}

@@ -139,7 +139,7 @@ class HireIn(BaseModel):
     region: str | None = None
 
 
-HIRE_ROLES = {"agent_ops", "country_manager"}
+HIRE_ROLES = {"agent_ops", "country_manager", "supervisor"}  # 主管可为自己的 KPI 招募 bot
 
 
 @router.post("/bots")
