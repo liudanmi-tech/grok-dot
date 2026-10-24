@@ -1,0 +1,22 @@
+id: biz-review
+display_name: 经营复盘员
+owner: agent-ops-lagos
+business_owner: u-country-manager
+service_account: svc-bot-biz-review
+status: production
+scope: { country: [NG] }
+triggers:
+  - { type: cron, expr: "0 16 * * 5", tz: Africa/Lagos, routine: weekly-review, compensate_before: "23:59" }
+tools:
+  - sales-data.query_sell_through
+  - sales-data.query_inventory
+  - knowledge.search
+  - notify.notify_internal
+  - bus.read
+  - memory.propose
+outputs:
+  - { channel: feishu, to: group:ng-management }
+default_skill: adhoc-analysis
+limits: { max_run_minutes: 20, max_tool_calls_per_run: 80, max_model_tokens_per_run: 1500000 }
+memory: { namespace: bot/biz-review, summary_ttl_days: 90 }
+browser: false

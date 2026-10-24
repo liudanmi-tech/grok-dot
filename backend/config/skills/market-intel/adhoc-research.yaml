@@ -1,0 +1,30 @@
+name: market-intel/adhoc-research
+version: 1.0.0
+owner: agent-ops-lagos
+bots: [market-intel]
+description: 人工下达的竞品 / 市场研究任务
+steps:
+  - id: kb
+    title: 检索知识库
+    type: tool
+    tool: knowledge.search
+    args: { query: "{{goal}}" }
+    est_minutes: 1
+  - id: prices
+    title: 拉取近 7 天竞品价格变化
+    type: tool
+    tool: competitor-watch.list_price_changes
+    args: { since_hours: 168 }
+    est_minutes: 1
+  - id: answer
+    title: 撰写结论（附来源）
+    type: llm
+    task_type: generate
+    data_class: internal
+    output: true
+    est_minutes: 3
+    system: 你是尼日利亚市场情报员。只依据给定数据回答，区分【事实】与【推断】，附来源。
+    prompt: |
+      任务：{{goal}}
+      知识库：{{steps.kb.result|json}}
+      竞品价格：{{steps.prices.result|json}}

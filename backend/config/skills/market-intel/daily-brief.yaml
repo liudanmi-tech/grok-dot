@@ -1,0 +1,51 @@
+name: market-intel/daily-brief
+version: 1.0.0
+owner: agent-ops-lagos
+bots: [market-intel]
+description: 每日 05:00 生成竞品早报，07:30 前发出
+steps:
+  - id: prices
+    title: 拉取过去 24 小时竞品价格变化
+    type: tool
+    tool: competitor-watch.list_price_changes
+    args: { since_hours: 24 }
+    est_minutes: 1
+  - id: launches
+    title: 拉取过去 7 天竞品新品
+    type: tool
+    tool: competitor-watch.list_launches
+    args: { since_hours: 168 }
+    est_minutes: 1
+  - id: bands
+    title: 读取我方价格带与价格政策
+    type: tool
+    tool: knowledge.search
+    args: { query: "价格带 price band 价格政策", doc_type: [price_policy, price_band] }
+    est_minutes: 1
+  - id: brief
+    title: 撰写早报（区分事实与推断，附来源）
+    type: llm
+    task_type: generate
+    data_class: internal
+    output: true
+    est_minutes: 3
+    system: |
+      你是尼日利亚市场情报员。只依据给定数据写作，不编造。每条判断标注【事实】或【推断】，并附来源链接。
+      结构：今日要点（≤5 条）→ 竞品价格变化 → 新品 → 对我方影响 → 今日缺失的来源。
+    prompt: |
+      竞品价格变化：{{steps.prices.result|json}}
+      竞品新品：{{steps.launches.result|json}}
+      我方价格带与政策：{{steps.bands.result|json}}
+  - id: send
+    title: 发送早报到飞书群
+    type: tool
+    tool: notify.notify_internal
+    args: { title: "市场情报早报 {{today}}", body: "{{steps.brief.result.content}}" }
+    est_minutes: 1
+  - id: handoff
+    title: 把大幅调价事件转交价格动销哨兵
+    type: tool
+    tool: bus.send
+    when: "{{steps.prices.result.big_moves}}"
+    args: { to_bot: price-sentinel, intent: competitor_price_event, payload_ref: "{{steps.prices.result.ref}}" }
+    est_minutes: 1

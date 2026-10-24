@@ -1,0 +1,30 @@
+name: shared/adhoc-analysis
+version: 1.0.0
+owner: agent-ops-lagos
+bots: [biz-review, price-sentinel]
+description: 人工下达的数据分析任务（数据范围按下达人权限收窄）
+steps:
+  - id: sales
+    title: 查询近 14 天终端销量
+    type: tool
+    tool: sales-data.query_sell_through
+    args: { days: 14, group_by: [brand, region, sku] }
+    est_minutes: 1
+  - id: kb
+    title: 检索相关政策
+    type: tool
+    tool: knowledge.search
+    args: { query: "{{goal}}" }
+    est_minutes: 1
+  - id: answer
+    title: 分析并给出结论
+    type: llm
+    task_type: analyze
+    data_class: internal
+    output: true
+    est_minutes: 3
+    system: 你是经营分析助手。只依据给定数据回答；数据范围以下达人可见范围为准，不推测范围外的数据。
+    prompt: |
+      任务：{{goal}}
+      销量数据（已按下达人权限过滤）：{{steps.sales.result|json}}
+      相关政策：{{steps.kb.result|json}}

@@ -1,0 +1,290 @@
+"""控制台与渠道使用的 HTTP 接口。POC 用请求头 X-User-Id 识别员工（生产环境为 SSO）。"""
+from __future__ import annotations
+
+from typing import Any
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from pydantic import BaseModel
+
+from ..approvals import ApprovalError
+from ..memory import MemoryRejected
+from ..orchestrator.tasks import TaskError
+
+router = APIRouter(prefix="/api")
+
+
+def P(request: Request):
+    return request.app.state.platform
+
+
+def current_user(request: Request, x_user_id: str | None = Header(default=None)) -> dict:
+    users = request.app.state.platform.users
+    if not x_user_id or x_user_id not in users:
+        raise HTTPException(401, "未识别的用户（请求头 X-User-Id）")
+    return users[x_user_id]
+
+
+def guard(fn, *a, **kw) -> Any:
+    try:
+        return fn(*a, **kw)
+    except (TaskError, ApprovalError, MemoryRejected, KeyError, ValueError) as e:
+        raise HTTPException(400, str(e).strip("'")) from e
+
+
+# ---------- 基础 ----------
+@router.get("/health")
+def health(p=Depends(P)):
+    return {"ok": True, "time": p.clock.now().isoformat(), "audit": p.audit.verify()["ok"]}
+
+
+@router.get("/me")
+def me(user=Depends(current_user)):
+    return user
+
+
+@router.get("/users")
+def users(p=Depends(P)):
+    return list(p.users.values())
+
+
+# ---------- 岗位登记表（23.2） ----------
+@router.get("/bots")
+def bots(p=Depends(P)):
+    out = []
+    for b in p.bots.list():
+        open_tasks = p.db.one("SELECT COUNT(*) n FROM tasks WHERE bot_id=? AND status NOT IN "
+                              "('accepted','cancelled','failed','delivered')", [b.id])["n"]
+        out.append({**b.__dict__, "namespace": b.namespace, "open_tasks": open_tasks,
+                    "month_spend": round(p.gateway.month_spend(b.id), 4),
+                    "budget": p.gateway.cfg.get("budgets", {}).get(b.id)})
+    return out
+
+
+@router.get("/skills")
+def skills(p=Depends(P)):
+    return p.skills.list()
+
+
+@router.get("/tools")
+def tools(p=Depends(P)):
+    return p.tools.specs()
+
+
+# ---------- 任务 ----------
+class TaskIn(BaseModel):
+    bot_id: str
+    goal: str
+    deadline: str | None = None
+
+
+@router.post("/tasks")
+def create_task(body: TaskIn, p=Depends(P), user=Depends(current_user)):
+    if "requester" not in user["roles"]:
+        raise HTTPException(403, "无权下达任务")
+    task = guard(p.tasks.create, bot_id=body.bot_id, goal=body.goal, deadline=body.deadline, source="manual",
+                 requester=user["id"], requester_scope=user.get("scope", {}))
+    p.runner.start(task["task_id"])
+    return p.tasks.get(task["task_id"])
+
+
+@router.get("/tasks")
+def list_tasks(bot_id: str | None = None, status: str | None = None, mine: bool = False, p=Depends(P),
+               user=Depends(current_user)):
+    return p.tasks.list(bot_id=bot_id, status=status, requester=user["id"] if mine else None)
+
+
+@router.get("/tasks/{task_id}")
+def get_task(task_id: str, p=Depends(P)):
+    task = guard(p.tasks.get, task_id)
+    task["timeline"] = list(reversed(p.audit.list(trace_id=task["trace_id"], limit=500)))
+    return task
+
+
+class ActionIn(BaseModel):
+    action: str            # confirm / modify / cancel / pause / resume / topup / handback / takeover / useful / rework
+    note: str | None = None
+
+
+@router.post("/tasks/{task_id}/action")
+def task_action(task_id: str, body: ActionIn, p=Depends(P), user=Depends(current_user)):
+    t, uid, a = p.tasks, user["id"], body.action
+    fn = {
+        "confirm": lambda: t.confirm(task_id, actor_id=uid, decision="approve"),
+        "modify": lambda: t.confirm(task_id, actor_id=uid, decision="modify", note=body.note),
+        "cancel": lambda: t.cancel(task_id, actor_id=uid),
+        "pause": lambda: t.pause(task_id, actor_id=uid),
+        "resume": lambda: t.resume(task_id, actor_id=uid),
+        "topup": lambda: t.topup(task_id, actor_id=uid),
+        "handback": lambda: t.handback(task_id, actor_id=uid, note=body.note),
+        "takeover": lambda: t.handback(task_id, actor_id=uid, note=body.note, take_over=True),
+        "useful": lambda: t.feedback(task_id, actor_id=uid, verdict="useful"),
+        "rework": lambda: t.feedback(task_id, actor_id=uid, verdict="rework", note=body.note),
+    }.get(a)
+    if not fn:
+        raise HTTPException(400, f"未知操作 {a}")
+    return guard(fn)
+
+
+# ---------- 审批 ----------
+@router.get("/approvals")
+def list_approvals(state: str | None = None, mine: bool = False, p=Depends(P), user=Depends(current_user)):
+    if not mine:
+        return p.approvals.list(state=state)
+    out: dict[str, dict] = {}
+    for role in user["roles"]:
+        for r in p.approvals.list(state=state, role=role):
+            out[r["approval_id"]] = r
+    return sorted(out.values(), key=lambda r: r["created_at"], reverse=True)
+
+
+class DecideIn(BaseModel):
+    decision: str                 # approve / edit / reject
+    note: str | None = None
+    edited_args: dict | None = None
+
+
+@router.post("/approvals/{approval_id}/decide")
+def decide(approval_id: str, body: DecideIn, p=Depends(P), user=Depends(current_user)):
+    return guard(p.approvals.decide, approval_id, actor=user, decision=body.decision,
+                 edited_args=body.edited_args, note=body.note)
+
+
+class BatchIn(BaseModel):
+    ids: list[str]
+
+
+@router.post("/approvals/batch-approve")
+def batch(body: BatchIn, p=Depends(P), user=Depends(current_user)):
+    return guard(p.approvals.batch_approve, body.ids, actor=user)
+
+
+# ---------- 审计 ----------
+@router.get("/audit")
+def audit(trace_id: str | None = None, bot_id: str | None = None, event_type: str | None = None,
+          limit: int = 200, p=Depends(P)):
+    return p.audit.list(trace_id=trace_id, bot_id=bot_id, event_type=event_type, limit=limit)
+
+
+@router.get("/audit/verify")
+def audit_verify(p=Depends(P)):
+    return p.audit.verify()
+
+
+@router.get("/alerts")
+def alerts(limit: int = 100, p=Depends(P)):
+    return p.audit.list(event_type="alert", limit=limit)
+
+
+# ---------- 记忆 ----------
+@router.get("/memories")
+def memories(namespace: str | None = None, status: str | None = None, q: str | None = None, p=Depends(P)):
+    return p.memory.list(namespace=namespace, status=status, q=q)
+
+
+@router.get("/memories/{memory_id}/history")
+def memory_history(memory_id: str, p=Depends(P)):
+    return p.memory.history(memory_id)
+
+
+class MemoryIn(BaseModel):
+    namespace: str
+    type: str
+    content: str
+
+
+@router.post("/memories")
+def memory_create(body: MemoryIn, p=Depends(P), user=Depends(current_user)):
+    if body.namespace.startswith("user/") and body.namespace != f"user/{user['id']}" and \
+            "agent_ops" not in user["roles"]:
+        raise HTTPException(403, "只能管理自己的个人层记忆")
+    return guard(p.memory.propose, namespace=body.namespace, type=body.type, content=body.content,
+                 created_by=user["id"])
+
+
+class MemoryEditIn(BaseModel):
+    reason: str
+    content: str | None = None
+    status: str | None = None
+
+
+def _can_manage(user: dict, mem: dict) -> bool:
+    return "agent_ops" in user["roles"] or mem["namespace"] == f"user/{user['id']}"
+
+
+@router.patch("/memories/{memory_id}")
+def memory_edit(memory_id: str, body: MemoryEditIn, p=Depends(P), user=Depends(current_user)):
+    mem = p.memory.get(memory_id)
+    if not mem:
+        raise HTTPException(404, "记忆不存在")
+    if not _can_manage(user, mem):
+        raise HTTPException(403, "只有智能体运营或本人可以修改")
+    return guard(p.memory.edit, memory_id, actor=user["id"], reason=body.reason, content=body.content,
+                 status=body.status)
+
+
+@router.post("/memories/{memory_id}/approve")
+def memory_approve(memory_id: str, p=Depends(P), user=Depends(current_user)):
+    if "agent_ops" not in user["roles"]:
+        raise HTTPException(403, "方法类记忆须智能体运营确认")
+    return guard(p.memory.approve, memory_id, user["id"])
+
+
+@router.delete("/memories/{memory_id}")
+def memory_delete(memory_id: str, reason: str, hard: bool = False, p=Depends(P), user=Depends(current_user)):
+    mem = p.memory.get(memory_id)
+    if not mem:
+        raise HTTPException(404, "记忆不存在")
+    if not _can_manage(user, mem):
+        raise HTTPException(403, "只有智能体运营或本人可以删除")
+    guard(p.memory.delete, memory_id, actor=user["id"], reason=reason, hard=hard)
+    return {"ok": True}
+
+
+# ---------- 例程、消息、Bot 间通信、草稿、用量 ----------
+@router.get("/routines/runs")
+def routine_runs(p=Depends(P)):
+    return p.scheduler.runs()
+
+
+@router.post("/routines/{bot_id}/{routine}/run")
+def routine_run(bot_id: str, routine: str, p=Depends(P), user=Depends(current_user)):
+    if "agent_ops" not in user["roles"] and "country_manager" not in user["roles"]:
+        raise HTTPException(403, "无权手动触发例程")
+    return guard(p.scheduler.trigger, bot_id, routine)
+
+
+@router.get("/outbox")
+def outbox(recipient: str | None = None, p=Depends(P)):
+    return p.outbox.list(recipient=recipient)
+
+
+@router.get("/bus")
+def bus(p=Depends(P)):
+    return p.bus.list()
+
+
+@router.get("/drafts")
+def drafts(p=Depends(P)):
+    return p.pricing.list()
+
+
+@router.get("/usage")
+def usage(p=Depends(P)):
+    return p.gateway.usage_summary()
+
+
+@router.get("/sources/health")
+def source_health(p=Depends(P)):
+    return p.competitor.source_health()
+
+
+@router.get("/config/routing")
+def routing(p=Depends(P)):
+    cfg = dict(p.gateway.cfg)
+    cfg["catalog"] = [{k: v for k, v in m.items() if "env" not in k} for m in cfg["catalog"]]
+    return cfg
+
+
+@router.get("/config/policy")
+def policy(p=Depends(P)):
+    return p.policy.cfg

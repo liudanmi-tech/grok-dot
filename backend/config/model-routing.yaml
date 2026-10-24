@@ -1,0 +1,84 @@
+# 模型路由（技术方案 5.5）
+# provider: mock 为离线模拟；openai_compat 为任意 OpenAI 兼容接口（如通义千问国际版兼容模式）
+# 设置环境变量 QWEN_API_KEY 后，qwen-* 会走真实接口；未设置时自动退回 mock。
+version: 3
+
+catalog:
+  - id: qwen-turbo
+    tier: economy
+    allowed_data: [public, internal]
+    provider: openai_compat
+    base_url_env: QWEN_BASE_URL
+    base_url_default: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+    api_key_env: QWEN_API_KEY
+    upstream_model: qwen-turbo
+    price_per_m: { input: 0.05, output: 0.20 }
+  - id: qwen-plus
+    tier: standard
+    allowed_data: [public, internal]
+    provider: openai_compat
+    base_url_env: QWEN_BASE_URL
+    base_url_default: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+    api_key_env: QWEN_API_KEY
+    upstream_model: qwen-plus
+    price_per_m: { input: 0.40, output: 1.20 }
+  - id: qwen-max-flagship
+    tier: premium
+    allowed_data: [public, internal]
+    provider: openai_compat
+    base_url_env: QWEN_BASE_URL
+    base_url_default: https://dashscope-intl.aliyuncs.com/compatible-mode/v1
+    api_key_env: QWEN_API_KEY
+    upstream_model: qwen-max
+    price_per_m: { input: 2.50, output: 7.50 }
+  - id: deepseek-standard        # POC 核实型号与数据条款
+    tier: standard
+    allowed_data: [public]
+    provider: openai_compat
+    base_url_env: DEEPSEEK_BASE_URL
+    base_url_default: https://api.deepseek.com/v1
+    api_key_env: DEEPSEEK_API_KEY
+    upstream_model: deepseek-chat
+    price_per_m: { input: 0.30, output: 1.20 }
+  - id: mock-local
+    tier: economy
+    allowed_data: [public, internal, personal]
+    provider: mock
+    price_per_m: { input: 0.0, output: 0.0 }
+
+defaults:
+  platform: qwen-plus
+  bots:
+    content-factory: qwen-max-flagship
+    dealer-assistant: qwen-plus
+    promoter-coach: qwen-plus
+
+routes:                         # 自上而下匹配，命中即停
+  - { when: { task: classify }, use: qwen-turbo }
+  - { when: { task: review },   use: qwen-turbo }
+
+fallback:
+  qwen-max-flagship: [qwen-plus, deepseek-standard, mock-local]
+  qwen-plus: [deepseek-standard, qwen-turbo, mock-local]
+  qwen-turbo: [mock-local]
+  deepseek-standard: [qwen-turbo, mock-local]
+
+budgets:                        # 月度上限（美元）
+  global: 1000
+  dealer-assistant: 280
+  promoter-coach: 220
+  content-factory: 150
+  price-sentinel: 100
+  market-intel: 80
+  biz-review: 70
+  voice-of-customer: 50
+  eval-and-shadow: 50
+  alert_at: 0.8
+
+timeouts:
+  total_seconds: 120
+circuit_breaker:
+  window_seconds: 300
+  error_rate: 0.2
+  min_requests: 5
+  open_seconds: 600

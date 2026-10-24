@@ -1,0 +1,26 @@
+id: price-sentinel
+display_name: 价格动销哨兵
+owner: agent-ops-lagos
+business_owner: u-country-manager
+service_account: svc-bot-price-sentinel
+status: staging            # 第二阶段上线；POC 中仅用于演示审批链路
+scope: { country: [NG] }
+triggers:
+  - { type: cron, expr: "30 5 * * *", tz: Africa/Lagos, routine: daily-scan, compensate_before: "12:00" }
+tools:
+  - sales-data.query_sell_through
+  - sales-data.query_inventory
+  - sales-data.detect_decline
+  - knowledge.search
+  - pricing-draft.create_suggestion
+  - pricing-draft.submit_suggestion
+  - notify.notify_internal
+  - bus.send
+  - bus.read
+  - memory.propose
+outputs:
+  - { channel: feishu, to: group:ng-pricing }
+default_skill: adhoc-analysis
+limits: { max_run_minutes: 20, max_tool_calls_per_run: 80, max_model_tokens_per_run: 1500000 }
+memory: { namespace: bot/price-sentinel, summary_ttl_days: 90 }
+browser: false

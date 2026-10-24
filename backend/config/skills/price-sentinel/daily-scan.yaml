@@ -1,0 +1,44 @@
+name: price-sentinel/daily-scan
+version: 1.0.0
+owner: agent-ops-lagos
+bots: [price-sentinel]
+description: 每日动销扫描，发现异常后写调价建议草稿并提交国家经理审批
+steps:
+  - id: detect
+    title: 识别动销下滑（7 日移动平均连续下滑）
+    type: tool
+    tool: sales-data.detect_decline
+    args: { window_days: 14, min_decline_pct: 15 }
+    est_minutes: 1
+  - id: policy
+    title: 读取当前价格政策
+    type: tool
+    tool: knowledge.search
+    args: { query: "价格政策 促销规则", doc_type: [price_policy] }
+    est_minutes: 1
+  - id: drafts
+    title: 为每个异常写调价建议草稿并提交审批
+    type: foreach
+    items: "{{steps.detect.result.anomalies}}"
+    est_minutes: 2
+    approval_action: true
+    do:
+      - id: draft
+        type: tool
+        tool: pricing-draft.create_suggestion
+        args:
+          sku: "{{item.sku}}"
+          region: "{{item.region}}"
+          proposal_type: promotion
+          rationale: "{{item.sku}} 在 {{item.region}} 7 日均值较前期下滑 {{item.decline_pct}}%"
+          evidence_refs: ["{{item.ref}}", "{{steps.policy.result.top_ref}}"]
+      - id: submit
+        type: tool
+        tool: pricing-draft.submit_suggestion
+        args: { draft_id: "{{draft.result.draft_id}}" }
+  - id: send
+    title: 发送预警摘要
+    type: tool
+    tool: notify.notify_internal
+    args: { title: "动销预警 {{today}}", body: "发现 {{steps.detect.result.count}} 个异常，调价建议已提交审批。" }
+    est_minutes: 1

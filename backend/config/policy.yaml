@@ -1,0 +1,45 @@
+# 三级授权 + 转交给人（技术方案 8.1 / 23.7）
+# 判定优先级：forbidden > handoff > approval > auto；未匹配按 approval 处理并告警
+version: 3
+
+tiers:
+  auto:
+    - read:*
+    - draft:report
+    - draft:content
+    - draft:pricing
+    - notify:internal
+    - memory:propose
+    - bus:send
+  approval:
+    - send:dealer_message
+    - send:promoter_message
+    - submit:pricing_change
+    - publish:content
+  handoff:
+    - commit:delivery_date
+    - handle:complaint
+    - handle:legal_or_compensation
+  forbidden:
+    - payment:*
+    - rebate:*
+    - credit:*
+    - contract:*
+    - export:customer_pii
+
+approvers:
+  send:dealer_message:   { role: channel_manager, backup: channel_lead }
+  send:promoter_message: { role: promoter_lead, backup: channel_manager }
+  submit:pricing_change: { role: country_manager, backup: sales_director }
+  publish:content:       { role: brand_manager, backup: marketing_manager }
+
+# 审批时效（分钟）；escalate 为升级给备份审批人的时间
+ttl:
+  send:dealer_message:   { minutes: 120, escalate_minutes: 60 }
+  send:promoter_message: { minutes: 120, escalate_minutes: 60 }
+  submit:pricing_change: { minutes: 1440, escalate_minutes: 1200 }
+  publish:content:       { minutes: 2880, escalate_minutes: 1440 }
+  default:               { minutes: 1440, escalate_minutes: 1200 }
+
+# 长期规则（第三阶段起开放；须双人确认）。POC 为空。
+standing_rules: []

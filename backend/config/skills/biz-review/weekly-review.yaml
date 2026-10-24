@@ -1,0 +1,35 @@
+name: biz-review/weekly-review
+version: 1.0.0
+owner: agent-ops-lagos
+bots: [biz-review]
+description: 每周五 16:00 经营周报
+steps:
+  - id: sales
+    title: 查询近 14 天终端销量（按品牌 × 区域）
+    type: tool
+    tool: sales-data.query_sell_through
+    args: { days: 14, group_by: [brand, region] }
+    est_minutes: 1
+  - id: inbox
+    title: 读取其他岗位转交的消息（预警汇总、售后问题）
+    type: tool
+    tool: bus.read
+    args: {}
+    est_minutes: 1
+  - id: report
+    title: 撰写经营周报
+    type: llm
+    task_type: analyze
+    data_class: internal
+    output: true
+    est_minutes: 4
+    system: 你是经营复盘员。所有数字标注数据时点，给出变化最大的 5 项及原因假设，假设须标注【推断】。
+    prompt: |
+      销量：{{steps.sales.result|json}}
+      其他岗位转交：{{steps.inbox.result|json}}
+  - id: send
+    title: 发送周报
+    type: tool
+    tool: notify.notify_internal
+    args: { title: "经营周报 {{today}}", body: "{{steps.report.result.content}}" }
+    est_minutes: 1

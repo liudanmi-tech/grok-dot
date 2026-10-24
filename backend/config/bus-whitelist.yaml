@@ -1,0 +1,8 @@
+# Bot 间通信白名单（技术方案 4.5 / 3.4）。不在此表的路径一律拒绝。
+routes:
+  - { from: market-intel,      to: price-sentinel,  intents: [competitor_price_event] }
+  - { from: market-intel,      to: content-factory, intents: [competitor_creative_trend] }
+  - { from: price-sentinel,    to: biz-review,      intents: [weekly_alert_digest] }
+  - { from: voice-of-customer, to: biz-review,      intents: [aftersales_issue_list] }
+retention_days: 30
+unread_alert_days: 7

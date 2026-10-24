@@ -1,0 +1,20 @@
+# 任务参数（技术方案 3.4「任务参数设定」）
+large_task:                     # 满足任一即为大任务，计划须下达人确认
+  min_steps: 6
+  max_est_minutes: 20
+  max_est_cost_usd: 1.0
+  always_if: [approval_action, cross_bot_subtask]
+stall:
+  hint_after_minutes: 10
+  timeout_after_minutes: 20
+  auto_retry: 1
+  paused_states: [awaiting_approval, awaiting_subtask, awaiting_confirmation, needs_human, paused]
+budget_usd:
+  default: 2
+  content-factory: 3
+  warn_at: 0.8
+  topup_max_ratio: 1.0
+replan:
+  bot_initiated_max: 2
+  requester_changes_counted: false
+  max_plan_versions: 5

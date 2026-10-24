@@ -1,0 +1,23 @@
+id: market-intel
+display_name: 市场情报员
+owner: agent-ops-lagos
+business_owner: u-country-manager
+service_account: svc-bot-market-intel
+status: production
+scope: { country: [NG] }
+triggers:
+  - { type: cron, expr: "0 5 * * *", tz: Africa/Lagos, routine: daily-brief, compensate_before: "12:00" }
+tools:
+  - competitor-watch.list_price_changes
+  - competitor-watch.list_launches
+  - knowledge.search
+  - knowledge.get_approved_text
+  - notify.notify_internal
+  - bus.send
+  - memory.propose
+outputs:
+  - { channel: feishu, to: group:ng-market-intel }
+default_skill: adhoc-research
+limits: { max_run_minutes: 20, max_tool_calls_per_run: 80, max_model_tokens_per_run: 1500000 }
+memory: { namespace: bot/market-intel, summary_ttl_days: 90 }
+browser: true

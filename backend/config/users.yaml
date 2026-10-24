@@ -1,0 +1,23 @@
+# POC 演示用户（生产环境由 SSO + 公司 IAM 提供）
+# scope：数据权限。缺省维度表示不限；"*" 表示全部。用于 11.6 代办权限求交集。
+users:
+  - id: u-country-manager
+    name: Country Manager (NG)
+    roles: [country_manager, requester]
+    scope: { country: [NG] }
+  - id: u-channel-lagos
+    name: Channel Manager · Lagos
+    roles: [channel_manager, requester]
+    scope: { country: [NG], region: [Lagos] }
+  - id: u-brand-tecno
+    name: Brand Manager · TECNO
+    roles: [brand_manager, requester]
+    scope: { country: [NG], brand: [TECNO] }
+  - id: u-staff-lagos-tecno
+    name: Sales Staff · Lagos · TECNO
+    roles: [requester]
+    scope: { country: [NG], region: [Lagos], brand: [TECNO] }
+  - id: u-agent-ops
+    name: Agent Ops
+    roles: [agent_ops, requester]
+    scope: { country: [NG] }
