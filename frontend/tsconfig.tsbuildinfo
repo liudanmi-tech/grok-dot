@@ -1,1 +1,0 @@
-{"root":["./src/app.tsx","./src/api.ts","./src/hooks.ts","./src/main.tsx","./src/pages/approvals.tsx","./src/pages/audit.tsx","./src/pages/memory.tsx","./src/pages/messages.tsx","./src/pages/overview.tsx","./src/pages/routines.tsx","./src/pages/tasks.tsx"],"version":"5.6.3"}
