@@ -297,3 +297,19 @@ main.wide { max-width: none; }
 .todo-item.click { cursor: pointer; } .todo-item.click:hover { border-color: var(--accent); background: var(--accent-soft); }
 .todo-item .go { color: var(--accent); white-space: nowrap; align-self: center; }
 .todo-item.sent .go { color: var(--good); } .todo-item.sent .box { border-color: var(--good); }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--panel); }
+.seg button { border: 0; background: none; padding: 7px 12px; display: inline-flex; gap: 6px; align-items: center; cursor: pointer; color: var(--quiet); font-size: 13px; }
+.seg button.on { background: var(--accent-soft); color: var(--accent-ink); font-weight: 600; }
+.kpi-strip { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; margin-bottom: 14px; }
+.kpi-tile { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; cursor: pointer; display: grid; gap: 4px;
+  transition: border-color .15s, box-shadow .15s; }
+.kpi-tile:hover { border-color: var(--accent); }
+.kpi-tile.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.kpi-tile.child { border-style: dashed; }
+.kpi-tile .kpibar { margin: 6px 0 2px; }
+.office3d { text-align: center; padding: 40px 24px; }
+.office3d p { max-width: 640px; margin: 8px auto; }
+.office3d-art { display: flex; gap: 14px; justify-content: center; margin-bottom: 18px; perspective: 400px; }
+.office3d-art .desk { width: 46px; height: 30px; border-radius: 6px; background: linear-gradient(135deg, var(--accent), #a78bfa);
+  transform: rotateX(45deg); animation: bob 2.4s ease-in-out infinite; }
+@keyframes bob { 50% { transform: rotateX(45deg) translateY(-6px); } }

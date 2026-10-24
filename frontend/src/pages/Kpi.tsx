@@ -262,7 +262,8 @@ function History({ k }: any) {
 function Channel({ k, byId, id, run }: any) {
   const [text, setText] = useState("");
   const end = useRef<HTMLDivElement>(null);
-  useEffect(() => { end.current?.scrollIntoView({ block: "nearest" }); }, [k.channel.length]);
+  // 只滚动群消息区域本身，不带动整页
+  useEffect(() => { const box = end.current?.parentElement; if (box) box.scrollTop = box.scrollHeight; }, [k.channel.length]);
   return (
     <div className="card channel">
       <div className="card-head"><h2>团队群</h2><span className="muted small">晨会、进度、晚会自动广播</span></div>

@@ -131,7 +131,7 @@ function KpiCard({ k, go }: any) {
   );
 }
 
-function NewKpi({ users, parents, onClose, onDone }: any) {
+export function NewKpi({ users, parents, onClose, onDone }: any) {
   const leads = users.filter((u: any) => u.roles.includes("supervisor"));
   const [f, setF] = useState<any>({ title: "拉各斯 TECNO 终端销量提升 15%", brand: ["TECNO"], region: ["Lagos"], uplift_pct: 15, weeks: 4,
     owner: leads[0]?.id || "", parent_id: "" });

@@ -14,7 +14,7 @@ export default function Chat({ id, team, users, go }: any) {
   const [draft, setDraft] = useState<any>(null);
   const end = useRef<HTMLDivElement>(null);
   const n = d?.messages?.length || 0;
-  useEffect(() => { end.current?.scrollIntoView({ block: "nearest" }); }, [n]);
+  useEffect(() => { const box = end.current?.parentElement; if (box) box.scrollTop = box.scrollHeight; }, [n]);
   useEffect(() => { setSel(null); setTab("deliver"); }, [id]);
   if (error) return <div className="card err">{error}</div>;
   if (!d) return <div className="card muted">加载中…</div>;

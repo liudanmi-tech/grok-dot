@@ -4,8 +4,7 @@ import { Activity, BookOpen, Bot, CheckSquare, ChevronDown, ChevronRight, Clock,
 import { api, currentUser, setCurrentUser } from "./api";
 import { usePoll } from "./hooks";
 import { useRoute } from "./ui";
-import Cockpit from "./pages/Cockpit";
-import Kpi from "./pages/Kpi";
+import Goals from "./pages/Goals";
 import DemoClock from "./pages/DemoClock";
 import Member from "./pages/Member";
 import Library from "./pages/Library";
@@ -33,7 +32,10 @@ export default function App() {
 
   useEffect(() => { api("/users").then(setUsers).catch(() => {}); }, []);
   const me = users.find((u) => u.id === user);
-  const page = route[0] === "home" ? "cockpit" : route[0];
+  // 目标驾驶舱与 KPI 合并为「目标」：旧链接 #/cockpit、#/kpi/<id>、#/home 自动归并
+  const page = ["home", "cockpit", "kpi", "goals"].includes(route[0]) ? "goals" : route[0];
+  const goalId = route[1] && route[1] !== "new" ? route[1] : undefined;
+  const lagging = (kpis.data || []).flatMap((k: any) => [k, ...(k.children || [])]).filter((k: any) => k.progress.rag === "red").length;
   const switchUser = (id: string) => { setCurrentUser(id); setUser(id); };
   const Nav = ({ to, icon, label, count }: { to: string; icon: any; label: string; count?: number }) => (
     <button className={`nav ${page === to ? "on" : ""}`} onClick={() => go(to)}>
@@ -50,18 +52,10 @@ export default function App() {
           <div className="brand-mark">AO</div>
           <div><b>Agent Org</b><span>尼日利亚销售 · 虚拟组织</span></div>
         </div>
-        <Nav to="cockpit" icon={<Gauge size={16} />} label="目标驾驶舱" />
-
-        <div className="side-label"><span>目标 · KPI</span>
-          <button className="btn ghost sm" style={{ color: "var(--side-ink)", padding: 2 }} title="设定 KPI" onClick={() => go("cockpit/new")}><Plus size={14} /></button>
-        </div>
-        {!(kpis.data || []).length && <div className="side-empty">还没有 KPI</div>}
-        {(kpis.data || []).flatMap((k: any) => [k, ...(k.children || [])]).map((k: any) => (
-          <button key={k.kpi_id} className={`nav ${page === "kpi" && route[1] === k.kpi_id ? "on" : ""}`} onClick={() => go(`kpi/${k.kpi_id}`)}>
-            <Target size={15} /><span className="ellipsis">{k.title}</span>
-            <span className={`rag-dot ${k.progress.rag || ""}`} />
-          </button>
-        ))}
+        <button className={`nav ${page === "goals" ? "on" : ""}`} onClick={() => go("goals")}>
+          <Gauge size={16} /><span>目标</span>
+          {lagging ? <span className="count" title="落后的 KPI">{lagging}</span> : <span className="sub">{(kpis.data || []).length} 个 KPI</span>}
+        </button>
 
         <div className="side-label"><span>任务对话</span>
           <button className="btn ghost sm" style={{ color: "var(--side-ink)", padding: 2 }} title="新建对话" onClick={() => go("chats")}><Plus size={14} /></button>
@@ -108,8 +102,7 @@ export default function App() {
 
       <main key={user} className={page === "chat" ? "wide" : ""}>
         <DemoClock onChange={() => { kpis.reload(); team.reload(); ov.reload(); convs.reload(); }} />
-        {page === "cockpit" && <Cockpit me={me} go={go} team={team6} onChange={() => kpis.reload()} switchUser={switchUser} autoNew={route[1] === "new"} />}
-        {page === "kpi" && route[1] && <Kpi id={route[1]} me={me} team={team.data || []} go={go} onChange={() => { kpis.reload(); team.reload(); }} switchUser={switchUser} />}
+        {page === "goals" && <Goals id={goalId} me={me} team={team6} go={go} onChange={() => { kpis.reload(); team.reload(); }} switchUser={switchUser} autoNew={route[1] === "new"} />}
         {page === "chats" && <Chats team={team6} go={go} />}
         {page === "chat" && route[1] && <Chat id={route[1]} team={team6} users={users} go={go} />}
         {page === "team" && <Team go={go} />}
