@@ -4,8 +4,9 @@ import { api, fmtTime, post } from "../api";
 import { usePoll } from "../hooks";
 import { ActivityPill, Avatar, Markdown, StepList, TaskPill, timeAgo } from "../ui";
 import { SAMPLES } from "./CommandCenter";
+import { MissionBody, ParentChip } from "./Mission";
 
-export default function Member({ id, go, onChange }: { id: string; go: (p: string) => void; onChange: () => void }) {
+export default function Member({ id, go, onChange, team }: { id: string; go: (p: string) => void; onChange: () => void; team: any[] }) {
   const { data: b, error, reload } = usePoll<any>(`/bots/${id}`, 2000);
   const appr = usePoll<any[]>("/approvals", 3000);
   const users = usePoll<any[]>("/users", 0);
@@ -57,12 +58,13 @@ export default function Member({ id, go, onChange }: { id: string; go: (p: strin
         <button className={tab === "profile" ? "on" : ""} onClick={() => setTab("profile")}>岗位档案</button>
       </div>
 
-      {tab === "work" ? <Work b={b} approvals={approvals} uname={uname} run={run} go={go} /> : <Profile b={b} />}
+      {tab === "work" ? <Work b={b} approvals={approvals} uname={uname} run={run} go={go} team={team} /> : <Profile b={b} />}
     </>
   );
 }
 
-function Work({ b, approvals, uname, run, go }: any) {
+function Work({ b, approvals, uname, run, go, team }: any) {
+  const lead = b.template === "chief-of-staff";
   const [text, setText] = useState("");
   const [notes, setNotes] = useState<Record<string, string>>({});
   const end = useRef<HTMLDivElement>(null);
@@ -80,9 +82,9 @@ function Work({ b, approvals, uname, run, go }: any) {
       {tasks.map((t: any) => (
         <div key={t.task_id} className="stack">
           <div className="msg me">
-            <div className="av sm" style={{ background: "#334155" }}>{t.source === "routine" ? "定" : t.source === "whatsapp" ? "W" : (uname[t.requester] || "我").slice(0, 1)}</div>
+            <div className="av sm" style={{ background: "#334155" }}>{t.source === "routine" ? "定" : t.source === "whatsapp" ? "W" : t.source === "coordinator" ? "调" : (uname[t.requester] || "我").slice(0, 1)}</div>
             <div className="bubble">
-              <div className="muted small">{t.source === "routine" ? "例程自动触发" : t.source === "whatsapp" ? "WhatsApp 经销商消息" : uname[t.requester] || t.requester} · {timeAgo(t.created_at)}</div>
+              <div className="muted small">{t.source === "routine" ? "例程自动触发" : t.source === "whatsapp" ? "WhatsApp 经销商消息" : t.source === "coordinator" ? `总调度分派（代 ${uname[t.requester] || t.requester}）` : uname[t.requester] || t.requester} · {timeAgo(t.created_at)}</div>
               <div>{t.goal}</div>
             </div>
           </div>
@@ -90,10 +92,10 @@ function Work({ b, approvals, uname, run, go }: any) {
             <Avatar bot={b} size="sm" dot={false} />
             <div className="bubble" style={{ flex: 1 }}>
               <div className="row between">
-                <div className="row"><b>{b.display_name}</b><TaskPill status={t.status} /><span className="muted small">计划 v{t.plan_version} · {t.progress_done}/{t.progress_total} 步</span></div>
+                <div className="row"><b>{b.display_name}</b><TaskPill status={t.status} /><ParentChip t={t} go={go} />{!lead && <span className="muted small">计划 v{t.plan_version} · {t.progress_done}/{t.progress_total} 步</span>}</div>
                 <span className="muted small mono">${t.cost_usd.toFixed(4)} · <a onClick={() => go(`tasks/${t.task_id}`)} style={{ cursor: "pointer" }}>审计回放</a></span>
               </div>
-              <StepList steps={t.steps} />
+              {lead ? <MissionBody t={t} team={team} go={go} run={run} post={post} /> : <StepList steps={t.steps} />}
               {t.notes.length > 0 && <div className="muted small">{t.notes[t.notes.length - 1].text}</div>}
 
               {t.status === "awaiting_confirmation" && (
@@ -147,7 +149,7 @@ function Work({ b, approvals, uname, run, go }: any) {
                 );
               })}
 
-              {t.status === "delivered" && t.requester && (
+              {t.status === "delivered" && t.requester && !t.parent && (
                 <div className="row" style={{ marginTop: 8 }}>
                   <button className="btn sm" onClick={() => act(t.task_id, "useful")}>👍 有用</button>
                   <input placeholder="需要怎么改？" value={notes[t.task_id] || ""} onChange={(e) => setNotes({ ...notes, [t.task_id]: e.target.value })} />
@@ -166,7 +168,7 @@ function Work({ b, approvals, uname, run, go }: any) {
           <button className="btn" onClick={() => go("whatsapp")}><MessageCircle size={14} />打开经销商渠道</button></div>
       ) : b.state === "active" && (
         <div className="composer">
-          <textarea rows={2} value={text} placeholder={`告诉 ${b.display_name} 要做什么…`} onChange={(e) => setText(e.target.value)}
+          <textarea rows={2} value={text} placeholder={lead ? "说一句目标，总调度会拆成分工派给团队，跑完给你一份汇总…" : `告诉 ${b.display_name} 要做什么…`} onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
           <div className="row between">
             <div className="row">{(SAMPLES[b.template] || []).map((s) => <button key={s} className="btn sm" onClick={() => setText(s)}>{s.length > 26 ? s.slice(0, 26) + "…" : s}</button>)}</div>

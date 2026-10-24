@@ -15,6 +15,7 @@ STATUS_LABEL = {
     "registered": "已登记", "planning": "规划中", "awaiting_confirmation": "待确认", "running": "执行中",
     "awaiting_approval": "等待审批", "needs_human": "需要人工处理", "paused": "已暂停", "delivered": "已交付",
     "accepted": "已验收", "rework": "需修改", "cancelled": "已取消", "failed": "失败",
+    "awaiting_subtask": "等待成员完成",
 }
 TERMINAL = {"accepted", "cancelled", "failed"}
 LLM_STEP_COST_ESTIMATE = 0.25  # 美元，按 Qwen-Plus 单次分析的常见量级估算
@@ -34,6 +35,7 @@ class TaskService:
         self.cfg = cfg
         self.on_resume: Callable[[str], None] | None = None   # 由执行器注入：继续执行
         self.on_retry: Callable[[str], None] | None = None
+        self.on_child_status: Callable[[dict], None] | None = None  # 由总调度注入：子任务状态回传父任务
 
     # ---------- 读取 ----------
     def get(self, task_id: str) -> dict:
@@ -82,7 +84,14 @@ class TaskService:
             fields["notes"] = self._note(task, note)
         self.audit.append("task.status", bot_id=task["bot_id"], trace_id=task["trace_id"], task_id=task_id,
                           from_status=task["status"], to_status=status, note=note)
-        return self._touch(task_id, **fields)
+        t = self._touch(task_id, **fields)
+        if t.get("parent_task_id") and self.on_child_status and status != task["status"]:
+            try:
+                self.on_child_status(t)
+            except Exception:  # noqa: BLE001  回传失败不影响子任务本身
+                import logging
+                logging.getLogger(__name__).exception("child status callback failed for %s", task_id)
+        return t
 
     def create(self, *, bot_id: str, goal: str, source: str = "manual", requester: str | None = None,
                requester_scope: dict | None = None, deadline: str | None = None, skill: str | None = None,
@@ -156,6 +165,29 @@ class TaskService:
                           version=task["plan_version"] + 1, steps=len(norm), large=large, reasons=why, by=by)
         return self._status(task_id, status, note, steps=norm, plan_version=task["plan_version"] + 1,
                             progress_done=0, progress_total=len(norm), replan_count=replan_count)
+
+    # ---------- 总调度：分工计划、子任务进度 ----------
+    def coordinate(self, task_id: str, *, steps: list[dict], note: str, versioned: bool = True) -> dict:
+        task = self.get(task_id)
+        norm = [{"index": i, "est_minutes": 1, "tool": None, **s} for i, s in enumerate(steps)]
+        done = sum(1 for s in norm if s["status"] in ("done", "skipped"))
+        version = task["plan_version"] + 1 if versioned else max(task["plan_version"], 1)
+        self.audit.append("task.plan", bot_id=task["bot_id"], trace_id=task["trace_id"], task_id=task_id,
+                          version=version, steps=len(norm), large=False, reasons=[], by="coordinator",
+                          subtasks=sum(1 for s in norm if s.get("type") == "subtask"))
+        return self._status(task_id, "awaiting_subtask", note, steps=norm, plan_version=version,
+                            progress_done=done, progress_total=len(norm))
+
+    def child_progress(self, task_id: str, steps: list[dict]) -> dict:
+        done = sum(1 for s in steps if s["status"] in ("done", "skipped"))
+        return self._touch(task_id, steps=steps, progress_done=done)
+
+    def wait_children(self, task_id: str) -> dict:
+        return self._status(task_id, "awaiting_subtask", "等待成员完成分工")
+
+    def children(self, task_id: str) -> list[dict]:
+        rows = self.db.query("SELECT task_id FROM tasks WHERE parent_task_id=? ORDER BY created_at", [task_id])
+        return [self.get(r["task_id"]) for r in rows]
 
     def _require_requester(self, task: dict, actor_id: str) -> None:
         if task["requester"] and actor_id != task["requester"]:
@@ -345,6 +377,8 @@ class TaskService:
     def _card(self, task: dict) -> None:
         bot = self.bots.get(task["bot_id"])
         recipient = f"user:{task['requester']}" if task["requester"] else (bot.outputs[0]["to"] if bot.outputs else "ops")
+        if task.get("parent_task_id"):
+            recipient = f"task:{task['parent_task_id']}"  # 免打扰：子任务进度只挂在父任务下，不单独推给下达人
         buttons = {
             "awaiting_confirmation": ["查看计划", "批准计划", "修改要求", "取消"],
             "running": ["补充要求", "暂停", "取消"],

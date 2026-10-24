@@ -83,8 +83,9 @@ export function describe(e: any, names: Record<string, string>) {
   const d = e.data || {};
   const who = (id?: string) => names[id || ""] || id || "";
   switch (e.type) {
-    case "task.create": return `接到任务${d.source === "routine" ? "（例程）" : d.source === "whatsapp" ? "（WhatsApp）" : ""}：${d.goal || ""}`;
-    case "task.plan": return `拆出 ${d.steps} 步计划${d.large ? "，等待下达人确认" : ""}`;
+    case "task.create": return d.source === "coordinator" ? `接到总调度分派：${d.goal || ""}`
+      : `接到任务${d.source === "routine" ? "（例程）" : d.source === "whatsapp" ? "（WhatsApp）" : ""}：${d.goal || ""}`;
+    case "task.plan": return d.by === "coordinator" ? `拆成 ${d.subtasks} 项分工，派给团队并行执行` : `拆出 ${d.steps} 步计划${d.large ? "，等待下达人确认" : ""}`;
     case "task.status": return `任务${STATUS[d.from_status] || d.from_status} → ${STATUS[d.to_status] || d.to_status}${d.note ? "：" + d.note : ""}`;
     case "tool.call": return d.decision === "approval" ? `提交审批：${d.tool}` : `调用 ${d.tool}`;
     case "approval.create": return `提交审批（${d.action_class}，预审${d.review_level === "low" ? "低风险" : d.review_level === "attention" ? "需关注" : "退回"}）`;

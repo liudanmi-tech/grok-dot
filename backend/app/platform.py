@@ -16,6 +16,7 @@ from .db import DB
 from .gateway.service import ModelGateway
 from .memory import MemoryService
 from .orchestrator.bus import MessageBus
+from .orchestrator.coordinator import Coordinator
 from .orchestrator.scheduler import Scheduler
 from .orchestrator.tasks import TaskService
 from .policy import PolicyEngine
@@ -78,6 +79,8 @@ class Platform:
         self.tasks = TaskService(self.db, self.audit, self.clock, self.outbox, self.bots, self.task_cfg)
         self.runner = SkillRunner(bots=self.bots, skills=self.skills, tasks=self.tasks, proxy=self.proxy,
                                   gateway=self.gateway, memory=self.memory, clock=self.clock)
+        self.coordinator = Coordinator(tasks=self.tasks, bots=self.bots, gateway=self.gateway, runner=self.runner,
+                                       memory=self.memory)
         self.approvals.listeners.append(self.tasks.on_approval)
         self.approvals.listeners.append(self._on_pricing_approval)
         self.whatsapp.on_dealer_message = self._on_dealer_message

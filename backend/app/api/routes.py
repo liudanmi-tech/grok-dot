@@ -49,8 +49,26 @@ def users(p=Depends(P)):
 
 # ---------- 岗位登记表（23.2） ----------
 ATTENTION = ("awaiting_confirmation", "needs_human", "paused", "awaiting_approval")
-OPEN = ("registered", "planning", "awaiting_confirmation", "running", "awaiting_approval", "needs_human",
+OPEN = ("registered", "planning", "awaiting_confirmation", "running", "awaiting_subtask", "awaiting_approval", "needs_human",
         "paused", "rework")
+
+
+def _with_links(p, t: dict) -> dict:
+    """任务卡片附上父子关系：总调度的任务带分工进度，成员的子任务带来源。"""
+    if t["parent_task_id"]:
+        try:
+            parent = p.tasks.get(t["parent_task_id"])
+            t["parent"] = {"task_id": parent["task_id"], "bot_id": parent["bot_id"], "goal": parent["goal"],
+                           "bot_name": p.bots.get(parent["bot_id"]).display_name}
+        except Exception:  # noqa: BLE001
+            t["parent"] = None
+    kids = p.tasks.children(t["task_id"]) if p.bots.template_of(t["bot_id"]) == "chief-of-staff" else []
+    t["children"] = [{"task_id": c["task_id"], "bot_id": c["bot_id"], "goal": c["goal"], "status": c["status"],
+                      "progress_done": c["progress_done"], "progress_total": c["progress_total"],
+                      "cost_usd": c["cost_usd"], "approvals": c["approvals"], "updated_at": c["updated_at"],
+                      "last_note": c["notes"][-1]["text"] if c["notes"] else None,
+                      "preview": (c["outputs"][0]["content"][:240] if c["outputs"] else None)} for c in kids]
+    return t
 
 
 def _bot_card(p, b) -> dict:
@@ -103,7 +121,7 @@ def bot_detail(bot_id: str, p=Depends(P)):
         "service_account": b.service_account, "namespace": b.namespace,
         "skills": p.skills.for_template(b.template),
         "memories": p.memory.list(namespace=b.namespace)[:20],
-        "tasks": p.tasks.list(bot_id=b.id, limit=30),
+        "tasks": [_with_links(p, t) for t in p.tasks.list(bot_id=b.id, limit=30)],
         "bus_routes": [r for r in p.bus.routes if b.template in (r["from"], r["to"])],
     })
     return card
@@ -165,7 +183,7 @@ def overview(p=Depends(P), user=Depends(current_user)):
         "confirm": [{"task_id": t["task_id"], "bot_id": t["bot_id"], "goal": t["goal"], "status": t["status"]}
                     for t in my_tasks if t["status"] == "awaiting_confirmation"],
         "review": [{"task_id": t["task_id"], "bot_id": t["bot_id"], "goal": t["goal"], "status": t["status"]}
-                   for t in my_tasks if t["status"] == "delivered"][:10],
+                   for t in my_tasks if t["status"] == "delivered" and not t["parent_task_id"]][:10],
         "human": [{"task_id": t["task_id"], "bot_id": t["bot_id"], "goal": t["goal"], "status": t["status"]}
                   for t in p.tasks.list(status="needs_human", limit=50)],
     }
@@ -198,7 +216,7 @@ def activity(limit: int = 60, bot_id: str | None = None, p=Depends(P)):
                     "task_id": pl.get("task_id"), "data": {k: pl.get(k) for k in (
                         "tool", "decision", "to_status", "from_status", "note", "goal", "action_class", "approval_id",
                         "to_bot", "intent", "level", "kind", "actor", "template", "state", "from_model", "to_model",
-                        "steps", "large", "source", "review_level", "channel") if pl.get(k) is not None}})
+                        "steps", "large", "source", "review_level", "channel", "subtasks", "by") if pl.get(k) is not None}})
     return out
 
 
@@ -265,6 +283,16 @@ def task_action(task_id: str, body: ActionIn, p=Depends(P), user=Depends(current
     if not fn:
         raise HTTPException(400, f"未知操作 {a}")
     return guard(fn)
+
+
+class FollowupIn(BaseModel):
+    text: str
+    bot_id: str | None = None   # 群聊里 @ 某成员；为空则交给总调度再分工
+
+
+@router.post("/tasks/{task_id}/followup")
+def followup(task_id: str, body: FollowupIn, p=Depends(P), user=Depends(current_user)):
+    return guard(p.coordinator.followup, task_id, actor_id=user["id"], text=body.text, bot_id=body.bot_id)
 
 
 # ---------- 审批 ----------

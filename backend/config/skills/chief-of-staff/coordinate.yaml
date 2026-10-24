@@ -1,0 +1,11 @@
+# 总调度的流程由 orchestrator/coordinator.py 执行（不是普通技能步骤），此文件用于岗位档案展示与版本记录。
+name: chief-of-staff/coordinate
+version: 1.0.0
+owner: agent-ops-lagos
+bots: [chief-of-staff]
+description: 把一句话目标拆成分工，派给在岗成员并行执行，跟进进度，最后汇总成一份交付
+steps:
+  - { id: plan, title: 理解目标并拆分工, type: llm }
+  - { id: dispatch, title: 派给在岗成员并行执行, type: subtask }
+  - { id: follow, title: 跟进进度，只在需要时找你, type: subtask }
+  - { id: synthesize, title: 汇总成一份交付, type: llm }

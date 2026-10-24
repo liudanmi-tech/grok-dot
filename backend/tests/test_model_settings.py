@@ -88,3 +88,23 @@ def test_keepalive_whitespace_cannot_hang_forever():
         assert time.monotonic() - t0 < 2
     finally:
         srv.shutdown()
+
+
+def test_rate_limit_is_retried_and_not_counted_as_failure(p, monkeypatch):
+    p.gateway.settings.update(actor="t", at="now", api_key=KEY)
+    calls = []
+
+    def flaky(url, headers, payload, timeout):
+        calls.append(1)
+        if len(calls) < 3:
+            return FakeResp(429, {"error": {"message": "rate limited"}})
+        return FakeResp(200, {"model": "m", "choices": [{"message": {"content": "ok"}}], "usage": {"cost": 0.001}})
+    monkeypatch.setattr(providers, "post_with_deadline", flaky)
+    monkeypatch.setattr(providers.time, "sleep", lambda s: None)
+    out = p.gateway.chat("biz-review", [{"role": "user", "content": "hi"}], trace_id="tr")
+    assert out["content"] == "ok" and len(calls) == 3 and out["fallback_from"] is None
+    # 一直限流：降级，但不打开熔断
+    monkeypatch.setattr(providers, "post_with_deadline", lambda *a, **k: FakeResp(429, {"error": {"message": "rl"}}))
+    for _ in range(6):
+        assert p.gateway.chat("biz-review", [{"role": "user", "content": "hi"}], trace_id="tr")["model"] == "mock-local"
+    assert not p.gateway._breaker_open("or-standard")

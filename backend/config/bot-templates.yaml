@@ -1,6 +1,15 @@
 # 智能体库：7 个岗位模板的展示信息（技术方案第 15 节）。工具、技能、例程见 profiles/ 与 skills/。
-team_seed: [market-intel, biz-review, price-sentinel, dealer-assistant]
+team_seed: [chief-of-staff, market-intel, biz-review, price-sentinel, dealer-assistant]
 templates:
+  - id: chief-of-staff
+    name: 总调度
+    title: Chief of Staff · Team Lead Agent
+    color: "#0f172a"
+    summary: 你只说一句目标，它拆成分工派给团队成员并行去做，跟进进度、处理转交，最后汇总成一份交付；只在需要你决策时打扰你。
+    capabilities: [目标拆解, 分派与跟进, 跨岗位汇总, 免打扰]
+    autonomy: 一级 · 只调度不碰数据
+    phase: 第一阶段
+    multi_instance: false
   - id: market-intel
     name: 市场情报员
     title: Market Intelligence Analyst

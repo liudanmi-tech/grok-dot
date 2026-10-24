@@ -128,7 +128,7 @@ class ModelGateway:
             try:
                 out = self.providers[entry["provider"]].chat(entry, clean, timeout)
             except ProviderError as e:
-                if e.configured:
+                if e.configured and e.status != 429:  # 限流不代表模型故障，不计入熔断
                     self._record(model, False)
                 errors.append(str(e))
                 continue

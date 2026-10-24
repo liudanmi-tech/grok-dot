@@ -5,6 +5,7 @@ import { usePoll } from "../hooks";
 import { ActivityPill, Avatar, describe, timeAgo } from "../ui";
 
 export const SAMPLES: Record<string, string[]> = {
+  "chief-of-staff": ["下周拉各斯 TECNO 要做促销：看竞品价格、各型号动销，再出一组文案", "Infinix Hot 50 最近口碑和销量怎么样？要不要调整打法"],
   "market-intel": ["对比 Samsung 和 Redmi 本周在主流价位段的调价动作", "汇总近 7 天竞品新品及对我方影响"],
   "biz-review": ["拉各斯 TECNO 上周销量变化最大的型号是哪些？", "各区域本周动销对比，找出下滑最快的区域"],
   "price-sentinel": ["扫描各区域动销下滑的型号并分析原因", "Spark X6851 在拉各斯是否需要促销？"],
@@ -61,11 +62,11 @@ export default function CommandCenter({ me, team, ov, reload, go }: any) {
           <span className="muted small">派给</span>
           {dispatchable.map((b: any) => (
             <span key={b.id} className={`mention ${target === b.id ? "on" : ""}`} onClick={() => setTarget(b.id)}>
-              <Avatar bot={b} size="sm" dot={false} />@{b.display_name}
+              <Avatar bot={b} size="sm" dot={false} />@{b.display_name}{b.template === "chief-of-staff" ? " · 自动分工" : ""}
             </span>
           ))}
         </div>
-        <textarea rows={2} value={text} placeholder={sel ? `告诉 ${sel.display_name} 要做什么…（Enter 发送，Shift+Enter 换行）` : "先招募一名成员"}
+        <textarea rows={2} value={text} placeholder={sel?.template === "chief-of-staff" ? "说一句目标，总调度会拆成分工派给团队并行去做，只在需要你决策时打扰你…" : sel ? `告诉 ${sel.display_name} 要做什么…（Enter 发送，Shift+Enter 换行）` : "先招募一名成员"}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } }} />
         <div className="row between">
@@ -73,7 +74,7 @@ export default function CommandCenter({ me, team, ov, reload, go }: any) {
             <button key={s} className="btn sm" onClick={() => setText(s)}>{s.length > 24 ? s.slice(0, 24) + "…" : s}</button>
           ))}</div>
           <div className="row">
-            <span className="muted small">数据范围 = 成员权限 ∩ 你的权限 · 大任务会先给你看计划</span>
+            <span className="muted small">{sel?.template === "chief-of-staff" ? "总调度只分派不碰数据 · 各成员按 成员权限 ∩ 你的权限 取数" : "数据范围 = 成员权限 ∩ 你的权限 · 大任务会先给你看计划"}</span>
             <button className="btn primary" disabled={!text.trim() || !target || busy} onClick={send}><ArrowUp size={14} />派活</button>
           </div>
         </div>

@@ -44,11 +44,12 @@ export default function App() {
         <div className="side-label"><span>我的团队 · {team.data?.length ?? 0}</span>
           <button className="btn ghost sm" style={{ color: "var(--side-ink)", padding: 2 }} title="招募成员" onClick={() => go("library")}><Plus size={14} /></button>
         </div>
-        {team.data?.map((b) => (
+        {sortTeam(team.data).map((b) => (
           <button key={b.id} className={`nav ${page === "bot" && route[1] === b.id ? "on" : ""}`} onClick={() => go(`bot/${b.id}`)}>
             <Avatar bot={b} size="sm" />
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.display_name}</span>
-            {b.attention + b.approvals > 0 ? <span className="count">{b.attention + b.approvals}</span>
+            {b.template === "chief-of-staff" && !(b.attention + b.approvals) && b.activity !== "working" ? <span className="sub">负责人</span>
+              : b.attention + b.approvals > 0 ? <span className="count">{b.attention + b.approvals}</span>
               : b.activity === "working" ? <span className="sub">工作中</span> : null}
           </button>
         ))}
@@ -80,8 +81,8 @@ export default function App() {
       </aside>
 
       <main key={user}>
-        {page === "home" && <CommandCenter me={me} team={team.data || []} ov={ov.data} reload={() => { team.reload(); ov.reload(); }} go={go} />}
-        {page === "bot" && route[1] && <Member id={route[1]} go={go} onChange={() => team.reload()} />}
+        {page === "home" && <CommandCenter me={me} team={sortTeam(team.data)} ov={ov.data} reload={() => { team.reload(); ov.reload(); }} go={go} />}
+        {page === "bot" && route[1] && <Member id={route[1]} go={go} onChange={() => team.reload()} team={team.data || []} />}
         {page === "library" && <Library go={go} onHired={() => team.reload()} />}
         {page === "tasks" && <Tasks focus={route[1] || null} setFocus={(id) => go(id ? `tasks/${id}` : "tasks")} />}
         {page === "approvals" && <Approvals />}
@@ -94,4 +95,9 @@ export default function App() {
       </main>
     </div>
   );
+}
+
+// 总调度排在团队最前（团队负责人）
+export function sortTeam(list?: any[] | null) {
+  return [...(list || [])].sort((a, b) => Number(b.template === "chief-of-staff") - Number(a.template === "chief-of-staff"));
 }

@@ -34,7 +34,7 @@ export const post = <T = any>(path: string, body?: unknown) =>
 export const STATUS: Record<string, string> = {
   registered: "已登记", planning: "规划中", awaiting_confirmation: "待确认", running: "执行中",
   awaiting_approval: "等待审批", needs_human: "需要人工处理", paused: "已暂停", delivered: "已交付",
-  accepted: "已验收", rework: "需修改", cancelled: "已取消", failed: "失败",
+  accepted: "已验收", rework: "需修改", cancelled: "已取消", failed: "失败", awaiting_subtask: "成员执行中",
   pending: "待审批", escalated: "已升级", executed: "已执行", rejected: "已拒绝", expired: "已过期",
   returned: "预审退回", done: "完成", skipped: "跳过", started: "已启动", proposed: "待确认", active: "生效中",
   deleted: "已删除",

@@ -8,8 +8,8 @@ from app.orchestrator.tasks import TaskError
 
 def test_library_and_seed(p):
     lib = {t["id"]: t for t in p.bots.library()}
-    assert len(lib) == 7 and lib["market-intel"]["hired"] == 1 and lib["content-factory"]["hired"] == 0
-    assert {b.id for b in p.bots.list()} == {"market-intel", "biz-review", "price-sentinel", "dealer-assistant"}
+    assert len(lib) == 8 and lib["market-intel"]["hired"] == 1 and lib["content-factory"]["hired"] == 0
+    assert {b.id for b in p.bots.list()} == {"chief-of-staff", "market-intel", "biz-review", "price-sentinel", "dealer-assistant"}
 
 
 def test_hire_regional_instance_runs_with_scope(p):
@@ -60,10 +60,10 @@ def test_team_api(p):
     assert r.status_code == 200 and r.json()["activity"] == "idle"
     assert c.post("/api/bots", json={"template": "dealer-assistant"}, headers=ops).status_code == 400  # 只能一个
     team = c.get("/api/bots", headers=ops).json()
-    assert len(team) == 5
+    assert len(team) == 6
     d = c.get("/api/bots/market-intel", headers=ops).json()
     assert d["skills"] and d["summary"]
     ov = c.get("/api/overview", headers=ops).json()
-    assert ov["team_size"] == 5 and "inbox" in ov
+    assert ov["team_size"] == 6 and "inbox" in ov
     assert c.patch("/api/bots/promoter-coach", json={"state": "paused"}, headers=ops).json()["activity"] == "paused"
     assert any(a["type"] == "bot.hire" for a in c.get("/api/activity", headers=ops).json())

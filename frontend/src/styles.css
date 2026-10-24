@@ -185,3 +185,18 @@ pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; background
 .field label { font-size: 12.5px; color: var(--quiet); }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* 总调度作战群 */
+.mission-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13.5px; }
+.mission-row .ic { width: 20px; height: 20px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--line-2); color: var(--quiet); flex: none; }
+.mission-row .ic.done { background: var(--good-soft); color: var(--good); }
+.mission-row .ic.running { background: var(--accent-soft); color: var(--accent); }
+.mission-row .ic.failed { background: var(--bad-soft); color: var(--bad); }
+.lanes { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; margin-top: 8px; }
+.lane { border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; background: var(--panel); cursor: pointer;
+  display: flex; flex-direction: column; gap: 6px; transition: border-color .15s; }
+.lane:hover { border-color: var(--accent); }
+.lane-goal { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; min-height: 2.6em; }
+.lane-note { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.followup { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); }

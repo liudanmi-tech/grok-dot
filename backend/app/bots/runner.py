@@ -10,7 +10,7 @@ import json
 import logging
 import re
 import threading
-from typing import Any
+from typing import Any, Callable
 
 from ..config import LAGOS, Clock
 from ..gateway.service import BudgetExceeded, GatewayError, ModelGateway
@@ -79,6 +79,7 @@ class SkillRunner:
         self.clock = clock
         self._locks: dict[str, threading.Lock] = {}
         self.background = True
+        self.special: dict[str, Callable[[str], None]] = {}  # 岗位模板 → 专用执行流程（如总调度）
         tasks.on_resume = self.start
         tasks.on_retry = self.retry
 
@@ -99,6 +100,9 @@ class SkillRunner:
         self.start(task_id)
 
     def run(self, task_id: str) -> None:
+        special = self.special.get(self.bots.template_of(self.tasks.get(task_id)["bot_id"]))
+        if special:
+            return special(task_id)
         lock = self._locks.setdefault(task_id, threading.Lock())
         if not lock.acquire(blocking=False):
             return  # 同一任务不并发执行

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import re
 import time
 
@@ -48,6 +49,23 @@ def post_with_deadline(url: str, *, headers: dict, payload: dict, timeout: float
         return _Resp(r.status_code, b"".join(chunks))
 
 
+RETRY_STATUS = {429, 502, 503}
+
+
+def post_retrying(url: str, *, headers: dict, payload: dict, timeout: float, attempts: int = 3) -> _Resp:
+    """限流（429）与上游临时错误重试，指数退避加抖动；总时长仍受 timeout 约束。"""
+    deadline = time.monotonic() + timeout
+    for i in range(attempts):
+        left = deadline - time.monotonic()
+        if left <= 1:
+            raise httpx.TimeoutException("重试期间超过总时长")
+        r = post_with_deadline(url, headers=headers, payload=payload, timeout=left)
+        if r.status_code not in RETRY_STATUS or i == attempts - 1:
+            return r
+        time.sleep(min(left / 2, 1.5 * 2 ** i + random.random()))
+    return r
+
+
 class MockProvider:
     """确定性的模拟模型：把输入中的关键行整理成要点，便于端到端联调。"""
 
@@ -61,7 +79,7 @@ class MockProvider:
         lines = [ln.strip() for ln in prompt.splitlines() if ln.strip()]
         bullets = [f"- {ln[:160]}" for ln in lines[:8]]
         content = (
-            f"【模拟输出 · {entry['id']}】未配置真实模型密钥，以下为输入要点整理，仅供联调：\n"
+            f"【模拟输出 · {entry['id']}】真实模型暂不可用（未配置或调用失败），以下为输入要点整理，仅供联调：\n"
             + "\n".join(bullets)
         )
         return {
@@ -116,11 +134,12 @@ class OpenRouterProvider:
             raise ProviderError(f"{entry['id']} 未配置 OpenRouter Key", configured=False)
         model = cfg.get("models", {}).get(entry.get("slot")) or entry.get("upstream_model")
         try:
-            r = post_with_deadline(
+            r = post_retrying(
                 f"{self.BASE}/chat/completions",
                 headers={"Authorization": f"Bearer {key}", "HTTP-Referer": "https://github.com/liudanmi-tech/grok-dot",
                          "X-Title": "grok-dot"},
-                payload={"model": model, "messages": messages, "usage": {"include": True}},
+                payload={"model": model, "messages": messages, "usage": {"include": True},
+                         **({"reasoning": {"enabled": False}} if entry.get("reasoning") is False else {})},
                 timeout=timeout,
             )
         except httpx.HTTPError as e:
