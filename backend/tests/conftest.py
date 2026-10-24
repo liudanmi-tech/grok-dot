@@ -37,6 +37,7 @@ def _fresh_db() -> str:
 def p(clock):
     plat = Platform(clock=clock, db_path=_fresh_db())
     plat.runner.background = False
+    plat.rhythm.background = False
     return plat
 
 

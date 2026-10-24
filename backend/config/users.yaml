@@ -17,6 +17,14 @@ users:
     name: Sales Staff · Lagos · TECNO
     roles: [requester]
     scope: { country: [NG], region: [Lagos], brand: [TECNO] }
+  - id: u-lead-lagos
+    name: Lagos 销售主管
+    roles: [supervisor, requester]
+    scope: { country: [NG], region: [Lagos] }
+  - id: u-lead-north
+    name: North 销售主管
+    roles: [supervisor, requester]
+    scope: { country: [NG], region: [North] }
   - id: u-agent-ops
     name: Agent Ops
     roles: [agent_ops, requester]

@@ -60,6 +60,18 @@ class Clock:
         return datetime.now(timezone.utc)
 
 
+class DemoClock(Clock):
+    """演示时钟：真实时间 + 可调偏移（「快进一天」）。偏移由平台持久化。"""
+
+    def __init__(self, offset_s: float = 0.0):
+        self.offset_s = offset_s
+
+    def now(self) -> datetime:
+        from datetime import timedelta
+
+        return datetime.now(timezone.utc) + timedelta(seconds=self.offset_s)
+
+
 class FixedClock(Clock):
     def __init__(self, t: datetime):
         self.t = t

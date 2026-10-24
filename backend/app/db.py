@@ -122,6 +122,26 @@ CREATE TABLE IF NOT EXISTS usage (
   ts TEXT NOT NULL, bot_id TEXT, model TEXT, trace_id TEXT,
   input_tokens INTEGER, output_tokens INTEGER, cost_usd REAL
 );
+
+-- 目标与节奏：KPI 树、周分解、晨会/晚会、团队群
+CREATE TABLE IF NOT EXISTS kpis (
+  kpi_id TEXT PRIMARY KEY, parent_id TEXT, title TEXT NOT NULL, metric TEXT NOT NULL, filter TEXT,
+  baseline_daily REAL, uplift_pct REAL, start_date TEXT, end_date TEXT, owner TEXT, squad TEXT,
+  status TEXT NOT NULL, created_by TEXT, created_at TEXT, claimed_at TEXT
+);
+CREATE TABLE IF NOT EXISTS kpi_weeks (
+  kpi_id TEXT NOT NULL, week_no INTEGER NOT NULL, start_date TEXT, end_date TEXT, target_units REAL,
+  items TEXT, brief TEXT, status TEXT NOT NULL, created_at TEXT, confirmed_by TEXT,
+  PRIMARY KEY (kpi_id, week_no)
+);
+CREATE TABLE IF NOT EXISTS meetings (
+  meeting_id TEXT PRIMARY KEY, kpi_id TEXT NOT NULL, kind TEXT NOT NULL, day TEXT NOT NULL, status TEXT NOT NULL,
+  data TEXT, mission_task_id TEXT, host TEXT, created_at TEXT, updated_at TEXT
+);
+CREATE TABLE IF NOT EXISTS channel_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kpi_id TEXT NOT NULL, ts TEXT NOT NULL, author TEXT, author_kind TEXT, kind TEXT, text TEXT, ref TEXT
+);
 """
 
 

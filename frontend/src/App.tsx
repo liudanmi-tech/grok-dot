@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
-import { Activity, BookOpen, CheckSquare, Clock, Cpu, Inbox, LayoutDashboard, ListTodo, MessageCircle, Plus,
+import { Activity, BookOpen, CheckSquare, Clock, Cpu, Gauge, Inbox, LayoutDashboard, ListTodo, MessageCircle, Plus, Target,
   ScrollText, Shield, Sparkles } from "lucide-react";
 import { api, currentUser, setCurrentUser } from "./api";
 import { usePoll } from "./hooks";
 import { Avatar, useRoute } from "./ui";
 import CommandCenter from "./pages/CommandCenter";
+import Cockpit from "./pages/Cockpit";
+import Kpi from "./pages/Kpi";
+import DemoClock from "./pages/DemoClock";
 import Member from "./pages/Member";
 import Library from "./pages/Library";
 import Tasks from "./pages/Tasks";
@@ -22,6 +25,7 @@ export default function App() {
   const [users, setUsers] = useState<any[]>([]);
   const team = usePoll<any[]>(`/bots?u=${user}`, 3000);
   const ov = usePoll<any>(`/overview?u=${user}`, 4000);
+  const kpis = usePoll<any[]>("/kpis", 5000);
 
   useEffect(() => { api("/users").then(setUsers).catch(() => {}); }, []);
   const me = users.find((u) => u.id === user);
@@ -40,6 +44,13 @@ export default function App() {
           <div><b>Agent Org</b><span>尼日利亚销售 · 虚拟组织</span></div>
         </div>
         <Nav to="home" icon={<LayoutDashboard size={16} />} label="指挥中心" count={ov.data?.inbox_count} />
+        <Nav to="cockpit" icon={<Gauge size={16} />} label="目标驾驶舱" />
+        {(kpis.data || []).flatMap((k: any) => [k, ...(k.children || [])]).map((k: any) => (
+          <button key={k.kpi_id} className={`nav sub-nav ${page === "kpi" && route[1] === k.kpi_id ? "on" : ""}`} onClick={() => go(`kpi/${k.kpi_id}`)}>
+            <Target size={13} /><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{k.title}</span>
+            <span className={`rag-dot ${k.progress.rag || ""}`} />
+          </button>
+        ))}
 
         <div className="side-label"><span>我的团队 · {team.data?.length ?? 0}</span>
           <button className="btn ghost sm" style={{ color: "var(--side-ink)", padding: 2 }} title="招募成员" onClick={() => go("library")}><Plus size={14} /></button>
@@ -81,8 +92,11 @@ export default function App() {
       </aside>
 
       <main key={user}>
+        <DemoClock onChange={() => { kpis.reload(); team.reload(); ov.reload(); }} />
         {page === "home" && <CommandCenter me={me} team={sortTeam(team.data)} ov={ov.data} reload={() => { team.reload(); ov.reload(); }} go={go} />}
         {page === "bot" && route[1] && <Member id={route[1]} go={go} onChange={() => team.reload()} team={team.data || []} />}
+        {page === "cockpit" && <Cockpit me={me} go={go} onChange={() => kpis.reload()} />}
+        {page === "kpi" && route[1] && <Kpi id={route[1]} me={me} team={team.data || []} go={go} onChange={() => kpis.reload()} />}
         {page === "library" && <Library go={go} onHired={() => team.reload()} />}
         {page === "tasks" && <Tasks focus={route[1] || null} setFocus={(id) => go(id ? `tasks/${id}` : "tasks")} />}
         {page === "approvals" && <Approvals />}

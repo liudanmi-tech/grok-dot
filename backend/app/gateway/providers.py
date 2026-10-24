@@ -59,7 +59,13 @@ def post_retrying(url: str, *, headers: dict, payload: dict, timeout: float, att
         left = deadline - time.monotonic()
         if left <= 1:
             raise httpx.TimeoutException("重试期间超过总时长")
-        r = post_with_deadline(url, headers=headers, payload=payload, timeout=left)
+        try:
+            r = post_with_deadline(url, headers=headers, payload=payload, timeout=left)
+        except (httpx.ConnectError, httpx.RemoteProtocolError, httpx.ReadError):
+            if i == attempts - 1:
+                raise  # 网络瞬断：重试；最后一次仍失败再交给降级链
+            time.sleep(min(left / 2, 1.0 + random.random()))
+            continue
         if r.status_code not in RETRY_STATUS or i == attempts - 1:
             return r
         time.sleep(min(left / 2, 1.5 * 2 ** i + random.random()))

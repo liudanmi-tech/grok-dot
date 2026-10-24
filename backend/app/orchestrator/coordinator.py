@@ -20,7 +20,7 @@ from .tasks import TaskError, TaskService
 log = logging.getLogger(__name__)
 
 TEMPLATE = "chief-of-staff"
-MAX_ASSIGNMENTS = 4
+MAX_ASSIGNMENTS = 6
 STAGGER_S = 1.0
 CHILD_DONE = {"delivered", "accepted", "failed", "cancelled"}
 CHILD_WAITING = {"awaiting_approval": "等待审批", "needs_human": "需要人工处理", "paused": "已暂停",
@@ -97,6 +97,9 @@ class Coordinator:
             if not member:
                 raise TaskError("该成员当前不在岗或不能接内部任务")
             brief, picks = None, [{"bot_id": only, "goal": note, "why": "下达人指定"}]
+        elif ctx.get("preset") and not followup:  # 晨会已定好分工：直接派
+            valid = {m["bot_id"] for m in team}
+            brief, picks = ctx["preset"].get("brief"), [p for p in ctx["preset"]["picks"] if p["bot_id"] in valid]
         else:
             brief, picks, model = self._decide(task, team, note, ctx if followup else None)
             if model:

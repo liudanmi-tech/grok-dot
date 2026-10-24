@@ -11,12 +11,13 @@ from .audit import AuditLog
 from .bots.registry import BotRegistry, SkillLibrary
 from .bots.runner import SkillRunner
 from .channels.outbox import Outbox
-from .config import CONFIG_DIR, DATA_DIR, Clock, Settings, load_yaml
+from .config import CONFIG_DIR, DATA_DIR, Clock, DemoClock, Settings, load_yaml
 from .db import DB
 from .gateway.service import ModelGateway
 from .memory import MemoryService
 from .orchestrator.bus import MessageBus
 from .orchestrator.coordinator import Coordinator
+from .orchestrator.rhythm import Rhythm
 from .orchestrator.scheduler import Scheduler
 from .orchestrator.tasks import TaskService
 from .policy import PolicyEngine
@@ -31,7 +32,7 @@ class Platform:
     def __init__(self, settings: Settings | None = None, clock: Clock | None = None,
                  config_dir: Path = CONFIG_DIR, data_dir: Path = DATA_DIR, db_path: str | None = None):
         self.settings = settings or Settings()
-        self.clock = clock or Clock()
+        self.clock = clock or DemoClock()
         self.db = DB(db_path or self.settings.database_url or self.settings.db_path)
 
         policy_cfg = load_yaml(config_dir / "policy.yaml")
@@ -81,12 +82,16 @@ class Platform:
                                   gateway=self.gateway, memory=self.memory, clock=self.clock)
         self.coordinator = Coordinator(tasks=self.tasks, bots=self.bots, gateway=self.gateway, runner=self.runner,
                                        memory=self.memory)
+        self.rhythm = Rhythm(db=self.db, audit=self.audit, clock=self.clock, bots=self.bots, tasks=self.tasks,
+                             coordinator=self.coordinator, gateway=self.gateway, sales=self.sales, memory=self.memory,
+                             outbox=self.outbox, users=self.users)
+        self._load_demo_state()
         self.approvals.listeners.append(self.tasks.on_approval)
         self.approvals.listeners.append(self._on_pricing_approval)
         self.whatsapp.on_dealer_message = self._on_dealer_message
         self.whatsapp.on_handoff = self._on_wa_handoff
         self.scheduler = Scheduler(self.db, self.audit, self.clock, self.bots, self.tasks, self.runner)
-        self.scheduler.maintenance += [self.approvals.tick, self.tasks.tick, self.memory.expire]
+        self.scheduler.maintenance += [self.approvals.tick, self.tasks.tick, self.memory.expire, self.rhythm.tick]
         self._stop = threading.Event()
 
     def _on_dealer_message(self, conv: dict, dealer: dict, text: str, lang: str) -> None:
@@ -117,6 +122,51 @@ class Platform:
                  "returned": "returned", "failed": "failed"}.get(rec["state"])
         if draft_id and state and state != "approved":  # approved 由执行器写入
             self.pricing.mark(draft_id, state, rec["approval_id"])
+
+    # ---------- 演示：时间快进与销量响应（持久化到 kv） ----------
+    def _kv(self, k: str, default=None):
+        import json
+        r = self.db.one("SELECT v FROM kv WHERE k=?", [k])
+        return json.loads(r["v"]) if r else default
+
+    def _kv_set(self, k: str, v) -> None:
+        import json
+        self.db.execute("DELETE FROM kv WHERE k=?", [k])
+        self.db.execute("INSERT INTO kv(k, v) VALUES (?, ?)", [k, json.dumps(v, ensure_ascii=False)])
+
+    def _load_demo_state(self) -> None:
+        if isinstance(self.clock, DemoClock):
+            self.clock.offset_s = float(self._kv("demo.clock_offset_s", 0) or 0)
+        self.sales.effects = self._kv("demo.sales_effects", []) or []
+
+    def advance_clock(self, to: str) -> dict:
+        """快进到：standup（今天/明天 07:30 晨会）、review（今天 18:00 晚会）、next_day（明天 07:30）、reset。"""
+        from datetime import datetime, timedelta
+        from .config import LAGOS
+        if not isinstance(self.clock, DemoClock):
+            raise ValueError("当前时钟不支持快进")
+        now = self.clock.now().astimezone(LAGOS)
+        if to == "reset":
+            self.clock.offset_s = 0
+        else:
+            d = now.date()
+            hm = {"standup": (7, 31), "review": (18, 1), "next_day": (7, 31)}.get(to)
+            if not hm:
+                raise ValueError(f"未知快进目标 {to}")
+            target = datetime(d.year, d.month, d.day, *hm, tzinfo=LAGOS)
+            if to == "next_day" or target <= now:
+                target += timedelta(days=1)
+            self.clock.offset_s += (target - now).total_seconds()
+        self._kv_set("demo.clock_offset_s", self.clock.offset_s)
+        self.audit.append("demo.clock", to=to, offset_s=round(self.clock.offset_s))
+        self.rhythm.tick()
+        return self.clock_state()
+
+    def clock_state(self) -> dict:
+        from .config import LAGOS
+        now = self.clock.now().astimezone(LAGOS)
+        return {"now": now.isoformat(timespec="minutes"), "offset_days": round(getattr(self.clock, "offset_s", 0) / 86400, 2),
+                "phase": "standup" if now.hour < 12 else "work" if now.hour < 18 else "review"}
 
     # ---------- 后台调度线程 ----------
     def start_background(self) -> None:

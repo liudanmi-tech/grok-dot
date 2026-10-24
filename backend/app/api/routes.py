@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from ..approvals import ApprovalError
 from ..memory import MemoryRejected
+from ..orchestrator.rhythm import RhythmError
 from ..orchestrator.tasks import TaskError
 
 router = APIRouter(prefix="/api")
@@ -27,7 +28,7 @@ def current_user(request: Request, x_user_id: str | None = Header(default=None))
 def guard(fn, *a, **kw) -> Any:
     try:
         return fn(*a, **kw)
-    except (TaskError, ApprovalError, MemoryRejected, KeyError, ValueError) as e:
+    except (TaskError, ApprovalError, MemoryRejected, RhythmError, KeyError, ValueError) as e:
         raise HTTPException(400, str(e).strip("'")) from e
 
 
@@ -293,6 +294,108 @@ class FollowupIn(BaseModel):
 @router.post("/tasks/{task_id}/followup")
 def followup(task_id: str, body: FollowupIn, p=Depends(P), user=Depends(current_user)):
     return guard(p.coordinator.followup, task_id, actor_id=user["id"], text=body.text, bot_id=body.bot_id)
+
+
+# ---------- 目标与节奏：KPI、周分解、晨会、晚会、团队群 ----------
+class KpiIn(BaseModel):
+    title: str
+    brand: list[str] | None = None
+    region: list[str] | None = None
+    uplift_pct: float
+    weeks: int = 4
+    owner: str | None = None
+    parent_id: str | None = None
+
+
+def _need(user, *roles):
+    if not set(roles) & set(user["roles"]):
+        raise HTTPException(403, "无权执行此操作")
+
+
+@router.get("/kpis")
+def kpi_tree(p=Depends(P)):
+    return p.rhythm.tree()
+
+
+@router.post("/kpis")
+def kpi_create(body: KpiIn, p=Depends(P), user=Depends(current_user)):
+    _need(user, "country_manager", "supervisor")
+    return guard(p.rhythm.create_kpi, actor=user["id"], **body.model_dump())
+
+
+@router.get("/kpis/{kpi_id}")
+def kpi_detail(kpi_id: str, p=Depends(P)):
+    k = guard(p.rhythm.kpi, kpi_id, detail=True)
+    k["squad_cards"] = [_bot_card(p, p.bots.get(b)) for b in k["squad"] if p.bots._row(b)]
+    return k
+
+
+class SquadIn(BaseModel):
+    squad: list[str]
+
+
+@router.post("/kpis/{kpi_id}/claim")
+def kpi_claim(kpi_id: str, body: SquadIn, p=Depends(P), user=Depends(current_user)):
+    return guard(p.rhythm.claim, kpi_id, actor=user["id"], squad=body.squad)
+
+
+class WeekIn(BaseModel):
+    items: list[dict] | None = None
+
+
+@router.post("/kpis/{kpi_id}/weeks/{week_no}/confirm")
+def kpi_week_confirm(kpi_id: str, week_no: int, body: WeekIn, p=Depends(P), user=Depends(current_user)):
+    return guard(p.rhythm.confirm_week, kpi_id, week_no, actor=user["id"], items=body.items)
+
+
+@router.post("/kpis/{kpi_id}/standup")
+def kpi_standup(kpi_id: str, p=Depends(P), user=Depends(current_user)):
+    k = guard(p.rhythm._row, kpi_id)
+    if user["id"] != k["owner"]:
+        _need(user, "country_manager", "agent_ops")
+    return guard(p.rhythm.standup, kpi_id, actor=user["id"])
+
+
+@router.post("/kpis/{kpi_id}/review/prepare")
+def kpi_review_prepare(kpi_id: str, p=Depends(P), user=Depends(current_user)):
+    return guard(p.rhythm.prepare_review, kpi_id, actor=user["id"])
+
+
+class ReviewIn(BaseModel):
+    ratings: dict[str, dict] = {}
+    notes: str = ""
+    adjustments: str = ""
+
+
+@router.post("/kpis/{kpi_id}/review")
+def kpi_review(kpi_id: str, body: ReviewIn, p=Depends(P), user=Depends(current_user)):
+    return guard(p.rhythm.submit_review, kpi_id, actor=user["id"], ratings=body.ratings, notes=body.notes,
+                 adjustments=body.adjustments)
+
+
+class SayIn(BaseModel):
+    text: str
+
+
+@router.post("/kpis/{kpi_id}/channel")
+def kpi_say(kpi_id: str, body: SayIn, p=Depends(P), user=Depends(current_user)):
+    guard(p.rhythm.post_human, kpi_id, actor=user["id"], text=body.text)
+    return p.rhythm.channel(kpi_id)
+
+
+@router.get("/demo/clock")
+def demo_clock(p=Depends(P)):
+    return p.clock_state()
+
+
+class AdvanceIn(BaseModel):
+    to: str
+
+
+@router.post("/demo/clock")
+def demo_advance(body: AdvanceIn, p=Depends(P), user=Depends(current_user)):
+    _need(user, "country_manager", "supervisor", "agent_ops")
+    return guard(p.advance_clock, body.to)
 
 
 # ---------- 审批 ----------

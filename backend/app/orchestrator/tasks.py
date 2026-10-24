@@ -36,6 +36,7 @@ class TaskService:
         self.on_resume: Callable[[str], None] | None = None   # 由执行器注入：继续执行
         self.on_retry: Callable[[str], None] | None = None
         self.on_child_status: Callable[[dict], None] | None = None  # 由总调度注入：子任务状态回传父任务
+        self.listeners: list[Callable[[dict, str], None]] = []       # 任意状态变化（如团队群广播）
 
     # ---------- 读取 ----------
     def get(self, task_id: str) -> dict:
@@ -85,6 +86,12 @@ class TaskService:
         self.audit.append("task.status", bot_id=task["bot_id"], trace_id=task["trace_id"], task_id=task_id,
                           from_status=task["status"], to_status=status, note=note)
         t = self._touch(task_id, **fields)
+        for fn in self.listeners:
+            try:
+                fn(t, task["status"])
+            except Exception:  # noqa: BLE001
+                import logging
+                logging.getLogger(__name__).exception("task listener failed for %s", task_id)
         if t.get("parent_task_id") and self.on_child_status and status != task["status"]:
             try:
                 self.on_child_status(t)

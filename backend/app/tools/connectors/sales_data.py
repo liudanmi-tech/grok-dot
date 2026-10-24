@@ -23,7 +23,7 @@ SKUS = [
     ("A70", "itel", "A70"),
 ]
 REGIONS = ["Lagos", "North", "South-West", "South-East", "FCT"]
-HISTORY_DAYS = 35
+HISTORY_DAYS = 70  # 覆盖 KPI 基线（开始前 14 天）+ 4 周周期 + 快进
 
 
 def _base(sku: str, region: str) -> int:
@@ -40,6 +40,24 @@ class SalesData:
     def __init__(self, clock: Clock, artifacts: ArtifactStore):
         self.clock = clock
         self.artifacts = artifacts
+        # 业务动作对销量的影响（合成数据）：[{from, region?, brand?, sku?, pct, why}]，用于 KPI 演示
+        self.effects: list[dict] = []
+
+    def _lift(self, sku: str, brand: str, region: str, d: date) -> float:
+        pct = 0.0
+        for e in self.effects:
+            if d.isoformat() >= e["from"] and e.get("region") in (None, region) and e.get("brand") in (None, brand) \
+                    and e.get("sku") in (None, sku):
+                pct += e["pct"]
+        return 1 + pct
+
+    def daily_units(self, *, region: list[str] | None, brand: list[str] | None, start: str, end: str) -> dict[str, int]:
+        """KPI 计算用：按日汇总终端销量（含 start、end），只到数据截止日（昨天）。"""
+        out: dict[str, int] = defaultdict(int)
+        for r in self._series():
+            if start <= r["date"] <= end and (not region or r["region"] in region) and (not brand or r["brand"] in brand):
+                out[r["date"]] += r["units"]
+        return dict(out)
 
     def _as_of(self) -> date:
         return self.clock.now().astimezone(LAGOS).date() - timedelta(days=1)
@@ -55,6 +73,7 @@ class SalesData:
                     units = base * _noise(sku, region, d)
                     if sku == "X6851" and region == "Lagos" and i < 14:
                         units *= 1 - 0.035 * (14 - i)  # 近 14 天逐日下滑
+                    units *= self._lift(sku, brand, region, d)
                     rows.append({"date": d.isoformat(), "sku": sku, "brand": brand, "model": model,
                                  "region": region, "country": "NG", "units": int(round(units))})
         return rows
