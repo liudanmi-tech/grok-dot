@@ -611,3 +611,13 @@ select { appearance: none; -webkit-appearance: none; padding-right: 28px;
 .mention-strip { display: flex; gap: 6px; overflow-x: auto; padding: 2px 2px 4px; scrollbar-width: thin; }
 .mention-strip .mention { flex: none; }
 main { padding-bottom: 96px; }
+
+/* 输入框更醒目：浅底填充 + 圆角 + 聚焦蓝色光圈（新建对话、派活等所有 composer） */
+.composer textarea { background: rgba(0, 113, 227, .05); border: 1.5px solid rgba(0, 113, 227, .22); border-radius: 14px;
+  padding: 12px 14px; min-height: 72px; font-size: 14.5px; line-height: 1.55; margin: 8px 0 10px;
+  transition: border-color .15s, box-shadow .15s, background .15s; }
+.composer textarea::placeholder { color: #8e8e93; }
+.composer textarea:hover { border-color: rgba(0, 113, 227, .4); }
+.composer textarea:focus { background: #fff; border-color: var(--accent); box-shadow: 0 0 0 4px rgba(0, 113, 227, .16); outline: none; }
+.composer:focus-within { box-shadow: var(--shadow-hover); }
+@media (prefers-color-scheme: dark) { .composer textarea { background: rgba(10,132,255,.10); } .composer textarea:focus { background: var(--panel); } }
