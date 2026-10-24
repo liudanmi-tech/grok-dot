@@ -37,7 +37,8 @@ function shade(hex: string) {
 }
 
 export const ACTIVITY: Record<string, [string, string]> = {
-  working: ["info", "工作中"], needs_you: ["warn", "等你处理"], idle: ["", "待命"], paused: ["", "已暂停"], retired: ["", "已离岗"],
+  working: ["info", "干活中"], needs_you: ["warn", "等你处理"], idle: ["good", "待命"], off_duty: ["off", "下班"],
+  paused: ["", "已暂停"], retired: ["", "已离岗"],
 };
 
 export function ActivityPill({ a }: { a: string }) {

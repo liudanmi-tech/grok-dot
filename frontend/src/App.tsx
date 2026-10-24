@@ -61,7 +61,8 @@ export default function App() {
             <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.display_name}</span>
             {b.template === "chief-of-staff" && !(b.attention + b.approvals) && b.activity !== "working" ? <span className="sub">负责人</span>
               : b.attention + b.approvals > 0 ? <span className="count">{b.attention + b.approvals}</span>
-              : b.activity === "working" ? <span className="sub">工作中</span> : null}
+              : b.activity === "working" ? <span className="sub">干活中</span>
+              : b.activity === "off_duty" ? <span className="sub">下班</span> : null}
           </button>
         ))}
         <Nav to="library" icon={<Sparkles size={16} />} label="招募成员" />

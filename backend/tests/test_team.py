@@ -67,3 +67,15 @@ def test_team_api(p):
     assert ov["team_size"] == 6 and "inbox" in ov
     assert c.patch("/api/bots/promoter-coach", json={"state": "paused"}, headers=ops).json()["activity"] == "paused"
     assert any(a["type"] == "bot.hire" for a in c.get("/api/activity", headers=ops).json())
+
+
+def test_activity_distinguishes_off_duty_idle_working(p, clock):
+    c = TestClient(create_app(p))
+    act = lambda: {b["id"]: b["activity"] for b in c.get("/api/bots").json()}  # noqa: E731
+    a = act()                                             # 06:00 拉各斯：晨会前
+    assert a["biz-review"] == "off_duty" and a["dealer-assistant"] == "idle"   # 对外岗位 7×24
+    clock.advance(hours=3)                                # 09:00 上班
+    assert act()["biz-review"] == "idle"
+    t = p.tasks.create(bot_id="biz-review", goal="x", source="manual")
+    p.tasks.submit_plan(t["task_id"], [{"title": "a", "type": "llm"}])
+    assert act()["biz-review"] == "working"

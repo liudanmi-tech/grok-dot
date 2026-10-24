@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Moon, Sun, Users } from "lucide-react";
 import { post } from "../api";
 import { usePoll } from "../hooks";
-import { Avatar, DeliverableCard, Markdown, TaskPill, timeAgo } from "../ui";
+import { ActivityPill, Avatar, DeliverableCard, Markdown, TaskPill, timeAgo } from "../ui";
 import { KpiBar, KpiNumbers, RagPill } from "./Cockpit";
 
 const RATING: Record<string, [string, string]> = { good: ["good", "超出预期"], ok: ["", "符合预期"], behind: ["bad", "落后"] };
@@ -50,9 +50,14 @@ export default function Kpi({ id, me, team, go, onChange, switchUser }: any) {
               <div className="lanes">
                 {k.squad_cards.map((b: any) => (
                   <div key={b.id} className="lane" onClick={() => go(`bot/${b.id}`)}>
-                    <div className="row" style={{ flexWrap: "nowrap" }}><Avatar bot={b} size="sm" /><b>{b.display_name}</b></div>
-                    <div className="muted small lane-note">{b.current ? b.current.goal : b.activity === "needs_you" ? "等你处理" : "待命"}</div>
-                    <div className="bar"><i style={{ width: `${b.current?.progress_total ? (100 * b.current.progress_done) / b.current.progress_total : b.current ? 5 : 0}%` }} /></div>
+                    <div className="row" style={{ flexWrap: "nowrap" }}><Avatar bot={b} size="sm" /><b>{b.display_name}</b>
+                      <span style={{ marginLeft: "auto" }}><ActivityPill a={b.activity} /></span></div>
+                    <div className="muted small lane-note">{b.current ? b.current.goal
+                      : b.activity === "needs_you" ? `有 ${b.attention + b.approvals} 件事等你处理`
+                      : b.activity === "off_duty" ? `已下班 · 今日完成 ${b.done_today} 项`
+                      : b.activity === "paused" ? "已暂停，不接新任务" : `待命中 · 今日完成 ${b.done_today} 项`}</div>
+                    <div className="bar"><i style={{ width: `${b.current?.progress_total ? (100 * b.current.progress_done) / b.current.progress_total : b.current ? 5 : b.done_today ? 100 : 0}%`,
+                      background: b.current ? undefined : "var(--line)" }} /></div>
                   </div>
                 ))}
               </div>

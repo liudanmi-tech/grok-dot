@@ -73,6 +73,13 @@ def _with_links(p, t: dict) -> dict:
     return t
 
 
+def _on_duty(p) -> bool:
+    from ..config import LAGOS
+    from ..orchestrator.rhythm import REVIEW_AT, STANDUP_AT
+    t = p.clock.now().astimezone(LAGOS)
+    return STANDUP_AT <= (t.hour, t.minute) < REVIEW_AT
+
+
 def _bot_card(p, b) -> dict:
     """团队成员卡片：身份、在岗状态、正在做什么、需要你处理什么、今日产出与费用。"""
     meta = p.bots.meta.get(b.template, {})
@@ -90,8 +97,10 @@ def _bot_card(p, b) -> dict:
         activity = "needs_you"
     elif current:
         activity = "working"
+    elif meta.get("channel", "内部") == "内部" and not _on_duty(p):
+        activity = "off_duty"   # 下班：07:30 晨会前、18:00 晚会后（对外渠道岗位 7×24 在线）
     else:
-        activity = "idle"
+        activity = "idle"       # 待命：上班时间，手上没活
     budget = p.gateway.cfg.get("budgets", {})
     return {
         "id": b.id, "template": b.template, "display_name": b.display_name, "title": meta.get("title"),

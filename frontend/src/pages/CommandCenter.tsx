@@ -101,7 +101,7 @@ export default function CommandCenter({ me, team, ov, reload, go }: any) {
                       <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{b.current.goal}</div>
                       <div className="bar" style={{ marginTop: 6 }}><i style={{ width: `${b.current.progress_total ? (100 * b.current.progress_done) / b.current.progress_total : 5}%` }} /></div>
                     </>
-                  ) : <span className="muted">{b.activity === "paused" ? "已暂停" : "空闲，等待派活"}</span>}
+                  ) : <span className="muted">{b.activity === "paused" ? "已暂停" : b.activity === "off_duty" ? `已下班 · 今日完成 ${b.done_today} 项` : "待命，等待派活"}</span>}
                 </div>
                 <div className="row between muted small">
                   <span>今日完成 {b.done_today}</span>
