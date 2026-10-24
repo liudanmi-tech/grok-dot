@@ -15,6 +15,7 @@ import time
 from typing import Any
 
 from ..gateway.service import BudgetExceeded, GatewayError
+from ..deliverables import CARD_SPEC, card_to_markdown, parse_card
 from .tasks import TaskError, TaskService
 
 log = logging.getLogger(__name__)
@@ -234,7 +235,7 @@ class Coordinator:
             parts.append(f"### {name}｜分工：{c['goal']}\n{body}")
         notes = "；".join(f["text"] for f in ctx.get("followups", []) if f.get("text"))
         system = ("你是总调度，向下达人汇报团队成果。先给 3-5 条结论（每条一句，带关键数字），再按成员列出要点和下一步建议；"
-                  "成员之间结论冲突时指出来；不要编造成员没给出的数据；推断请标注【推断】。用 Markdown，表格可用；全文控制在 600 字以内。")
+                  "成员之间结论冲突时指出来；不要编造成员没给出的数据；推断请标注【推断】。actions 写明每个成员或下达人的下一步。" + CARD_SPEC)
         user = f"目标：{task['goal']}\n" + (f"下达人追加要求：{notes}\n" if notes else "") + "\n\n".join(parts)
         try:
             out = self.gateway.chat(task["bot_id"], [{"role": "system", "content": system},
@@ -252,7 +253,10 @@ class Coordinator:
             return
         self.tasks.step(tid, idx, "done")
         self.memory_note(task, children)
-        self.tasks.deliver(tid, [{"step": "synthesize", "kind": "text", "content": out["content"], "model": out.get("model")}])
+        card = parse_card(out["content"])
+        content = card_to_markdown(card) if card else out["content"]
+        self.tasks.deliver(tid, [{"step": "synthesize", "kind": "card" if card else "text", "content": content, "card": card,
+                                  "model": out.get("model")}])
 
     def memory_note(self, task: dict, children: list[dict]) -> None:
         try:

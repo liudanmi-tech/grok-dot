@@ -13,6 +13,7 @@ import threading
 from typing import Any, Callable
 
 from ..config import LAGOS, Clock
+from ..deliverables import CARD_SPEC, card_to_markdown, parse_card
 from ..gateway.service import BudgetExceeded, GatewayError, ModelGateway
 from ..memory import MemoryService
 from ..orchestrator.tasks import TaskError, TaskService
@@ -181,8 +182,8 @@ class SkillRunner:
             ctx["steps"][spec["id"]] = {"result": result}
             self.tasks.save_context(task_id, ctx)
             if spec.get("output") and isinstance(result, dict) and result.get("content"):
-                outputs.append({"step": spec["id"], "kind": "text", "content": result["content"],
-                                "model": result.get("model")})
+                outputs.append({"step": spec["id"], "kind": "card" if result.get("card") else "text",
+                                "content": result["content"], "card": result.get("card"), "model": result.get("model")})
             self.tasks.step(task_id, i, "done")
 
         self._remember(task, ctx)
@@ -241,6 +242,9 @@ class SkillRunner:
         namespaces = [bot.namespace] + ([f"user/{task['requester']}"] if task["requester"] else [])
         mems = self.memory.recall(namespaces, ctx["goal"], k=5)
         system = render(spec.get("system", ""), ctx)
+        as_card = bool(spec.get("output")) and self.bots.meta.get(bot.template, {}).get("channel", "内部") == "内部"
+        if as_card:  # 内部岗位的交付统一为结构化卡片（对外岗位如 WhatsApp 回复保持纯文本）
+            system += CARD_SPEC
         if mems:
             system += "\n\n可参考的偏好与方法（来自记忆，不是业务事实）：\n" + "\n".join(f"- {m['content']}" for m in mems)
         messages = [{"role": "system", "content": system},
@@ -256,6 +260,9 @@ class SkillRunner:
         t = self.tasks.add_cost(task["task_id"], out["cost_usd"])
         if t["status"] == "paused":
             raise Stop()
+        card = parse_card(out["content"]) if as_card else None
+        if card:
+            out = {**out, "card": card, "content": card_to_markdown(card)}
         return out
 
     def _retry(self, task: dict, spec: dict, index: int, ctx: dict, msg: str) -> bool:

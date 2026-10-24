@@ -460,7 +460,8 @@ class Rhythm:
                 t = self.tasks.get(r["mission_task_id"])
                 r["mission"] = {"task_id": t["task_id"], "status": t["status"], "status_label": t["status_label"],
                                 "progress_done": t["progress_done"], "progress_total": t["progress_total"],
-                                "output": t["outputs"][0]["content"] if t["outputs"] else None}
+                                "output": t["outputs"][0]["content"] if t["outputs"] else None,
+                                "has_card": bool(t["outputs"] and t["outputs"][0].get("card"))}
             except TaskError:
                 r["mission"] = None
         return r

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp, Clock, MessageCircle, Pause, Play, Shield, Wrench } from "lucide-react";
 import { api, fmtTime, post } from "../api";
 import { usePoll } from "../hooks";
-import { ActivityPill, Avatar, Markdown, StepList, TaskPill, timeAgo } from "../ui";
+import { ActivityPill, Avatar, DeliverableCard, Markdown, StepList, TaskPill, timeAgo } from "../ui";
 import { SAMPLES } from "./CommandCenter";
 import { MissionBody, ParentChip } from "./Mission";
 
@@ -120,7 +120,8 @@ function Work({ b, approvals, uname, run, go, team }: any) {
               )}
 
               {t.outputs.map((o: any, i: number) => (
-                <div key={i}><div className="output rich"><Markdown text={o.content} /></div><div className="muted small" style={{ marginTop: 4 }}>模型 {o.model}</div></div>
+                <div key={i}>{o.card ? <DeliverableCard taskId={t.task_id} index={i} fallback={o.content} />
+                  : <><div className="output rich"><Markdown text={o.content} /></div><div className="muted small" style={{ marginTop: 4 }}>模型 {o.model}</div></>}</div>
               ))}
 
               {t.approvals.map((aid: string) => {

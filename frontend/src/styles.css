@@ -236,3 +236,9 @@ pre { white-space: pre-wrap; word-break: break-word; font-size: 12px; background
 .wz.on { border-color: var(--accent); color: var(--accent-ink); background: var(--accent-soft); }
 .wz.on span { background: var(--accent); color: #fff; }
 .wz.done span { background: var(--good); color: #fff; }
+.deliverable { margin-top: 8px; }
+.deliverable iframe { width: 100%; border: 0; display: block; background: transparent; border-radius: 14px; }
+.deliverable-bar { display: flex; justify-content: flex-end; gap: 4px; margin-top: 2px; }
+.deliverable-frame { position: relative; overflow: hidden; border-radius: 14px; }
+.deliverable-frame.folded::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 90px; pointer-events: none;
+  background: linear-gradient(to bottom, transparent, var(--panel)); }

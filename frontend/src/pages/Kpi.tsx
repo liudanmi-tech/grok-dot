@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Moon, Sun, Users } from "lucide-react";
 import { post } from "../api";
 import { usePoll } from "../hooks";
-import { Avatar, Markdown, TaskPill, timeAgo } from "../ui";
+import { Avatar, DeliverableCard, Markdown, TaskPill, timeAgo } from "../ui";
 import { KpiBar, KpiNumbers, RagPill } from "./Cockpit";
 
 const RATING: Record<string, [string, string]> = { good: ["good", "超出预期"], ok: ["", "符合预期"], behind: ["bad", "落后"] };
@@ -135,7 +135,8 @@ function Standup({ m, byId, go }: any) {
         })}
       </div>
       {m.mission?.output && (
-        <details style={{ marginTop: 10 }}><summary className="small">总调度汇总</summary><div className="output rich"><Markdown text={m.mission.output} /></div></details>
+        <details style={{ marginTop: 10 }}><summary className="small">总调度汇总</summary>{m.mission.has_card
+          ? <DeliverableCard taskId={m.mission.task_id} index={0} fallback={m.mission.output} /> : <div className="output rich"><Markdown text={m.mission.output} /></div>}</details>
       )}
     </>
   );

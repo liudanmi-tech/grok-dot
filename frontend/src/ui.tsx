@@ -151,3 +151,53 @@ export function Markdown({ text }: { text: string }) {
   }
   return <div className="md">{blocks}</div>;
 }
+
+// ---------- 交付卡片：服务端渲染的独立 HTML，沙箱 iframe 嵌入（无脚本），高度随内容 ----------
+export function DeliverableCard({ taskId, index, fallback }: { taskId: string; index: number; fallback?: string }) {
+  const [doc, setDoc] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [h, setH] = useState(240);
+  const [full, setFull] = useState(false);
+  const FOLD = 640;
+  useEffect(() => {
+    let live = true;
+    fetch(`/api/tasks/${taskId}/outputs/${index}/html`, { headers: { "X-User-Id": currentUserId() } })
+      .then((r) => (r.ok ? r.text() : Promise.reject(r.status)))
+      .then((t) => live && setDoc(t)).catch(() => live && setFailed(true));
+    return () => { live = false; };
+  }, [taskId, index]);
+  const fit = (el: HTMLIFrameElement | null) => {
+    const d = el?.contentDocument;
+    if (!d?.body) return;
+    const measure = () => setH(Math.max(120, d.documentElement.scrollHeight + 2));
+    measure();
+    new ResizeObserver(measure).observe(d.body);
+  };
+  const open = (download: boolean) => {
+    if (!doc) return;
+    const url = URL.createObjectURL(new Blob([doc], { type: "text/html;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.target = "_blank"; a.rel = "noopener";
+    if (download) a.download = `交付-${taskId}-${index + 1}.html`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  };
+  if (failed) return fallback ? <div className="output rich"><Markdown text={fallback} /></div> : null;
+  return (
+    <div className="deliverable">
+      <div className={`deliverable-frame ${!full && h > FOLD ? "folded" : ""}`} style={{ maxHeight: full ? undefined : FOLD }}>
+        {doc ? <iframe title="交付卡片" sandbox="allow-same-origin" srcDoc={doc} style={{ height: h }} onLoad={(e) => fit(e.currentTarget)} />
+          : <div className="muted small" style={{ padding: 12 }}>加载交付卡片…</div>}
+      </div>
+      <div className="deliverable-bar">
+        {h > FOLD && <button className="btn ghost sm" onClick={() => setFull(!full)}>{full ? "收起" : "展开全文"}</button>}
+        <button className="btn ghost sm" onClick={() => open(false)}>新窗口打开</button>
+        <button className="btn ghost sm" onClick={() => open(true)}>下载 HTML</button>
+      </div>
+    </div>
+  );
+}
+
+function currentUserId() {
+  try { return localStorage.getItem("ngap.user") || "u-country-manager"; } catch { return "u-country-manager"; }
+}

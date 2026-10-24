@@ -68,7 +68,8 @@ def _with_links(p, t: dict) -> dict:
                       "progress_done": c["progress_done"], "progress_total": c["progress_total"],
                       "cost_usd": c["cost_usd"], "approvals": c["approvals"], "updated_at": c["updated_at"],
                       "last_note": c["notes"][-1]["text"] if c["notes"] else None,
-                      "preview": (c["outputs"][0]["content"][:240] if c["outputs"] else None)} for c in kids]
+                      "preview": ((c["outputs"][0].get("card") or {}).get("headline") or c["outputs"][0]["content"][:240])
+                      if c["outputs"] else None} for c in kids]
     return t
 
 
@@ -259,6 +260,26 @@ def get_task(task_id: str, p=Depends(P)):
     task = guard(p.tasks.get, task_id)
     task["timeline"] = list(reversed(p.audit.list(trace_id=task["trace_id"], limit=500)))
     return task
+
+
+@router.get("/tasks/{task_id}/outputs/{index}/html")
+def output_html(task_id: str, index: int, p=Depends(P)):
+    """交付卡片的独立 HTML（嵌入工作流、新窗口打开、下载）。"""
+    from fastapi.responses import HTMLResponse
+
+    from ..config import LAGOS, parse_iso
+    from ..deliverables import card_to_html
+    t = guard(p.tasks.get, task_id)
+    if not 0 <= index < len(t["outputs"]) or not t["outputs"][index].get("card"):
+        raise HTTPException(404, "没有这份交付卡片")
+    o = t["outputs"][index]
+    b = p.bots.get(t["bot_id"])
+    meta = p.bots.meta.get(b.template, {})
+    when = parse_iso(t["updated_at"]).astimezone(LAGOS).strftime("%Y-%m-%d %H:%M")
+    return HTMLResponse(card_to_html(o["card"], bot_name=b.display_name, bot_title=meta.get("title", ""),
+                                     color=meta.get("color", "#4f46e5"), when=when, model=o.get("model"),
+                                     goal=t["goal"], trace_id=t["trace_id"]),
+                        headers={"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"})
 
 
 class ActionIn(BaseModel):

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, fmtTime, post, STATUS } from "../api";
-import { Markdown } from "../ui";
+import { DeliverableCard, Markdown } from "../ui";
 import { usePoll } from "../hooks";
 
 const ACTIONS: Record<string, [string, string][]> = {
@@ -128,7 +128,7 @@ function TaskDetail({ id, onClose }: { id: string; onClose: () => void }) {
 
       {t.outputs.length > 0 && <h3>产出</h3>}
       {t.outputs.map((o: any, i: number) => (
-        <div key={i}><div className="muted">{o.step} · {o.model}</div><div className="output rich"><Markdown text={o.content} /></div></div>
+        <div key={i}><div className="muted">{o.step} · {o.model}</div>{o.card ? <DeliverableCard taskId={t.task_id} index={i} fallback={o.content} /> : <div className="output rich"><Markdown text={o.content} /></div>}</div>
       ))}
 
       {t.approvals.length > 0 && <><h3>关联审批</h3><div className="muted">{t.approvals.join("、")}</div></>}
