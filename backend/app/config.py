@@ -22,6 +22,22 @@ VAR_DIR = Path(os.environ.get("NGAP_VAR_DIR", BACKEND_DIR / "var"))
 LAGOS = ZoneInfo("Africa/Lagos")
 
 
+def _load_dotenv(path: Path) -> None:
+    """读取 backend/.env（不覆盖已有环境变量）。密钥只放在这个文件里，不进 Git。"""
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+
+
+if not os.environ.get("NGAP_SKIP_DOTENV"):
+    _load_dotenv(BACKEND_DIR / ".env")
+
+
 def load_yaml(path: Path) -> Any:
     with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f) or {}

@@ -43,7 +43,8 @@ class PricingDrafts:
             elif ref.startswith("kb:"):
                 evidence.append({"ref": ref, "text": self.kb.text_for_ref(ref) or ""})
         preview = p.get("rationale", "")
-        return {"target": f"{p.get('sku')}@{p.get('region')}", "preview": preview, "evidence": evidence}
+        return {"target": f"{p.get('sku')}@{p.get('region')}", "preview": preview, "review_text": preview,
+                "evidence": evidence}
 
     def submit_suggestion(self, args: dict, ctx: ToolContext) -> dict:
         """仅在审批通过后执行：草稿转为 approved，等待公司现有价格审批流程拉取。"""

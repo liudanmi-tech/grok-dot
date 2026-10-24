@@ -19,7 +19,8 @@ from .orchestrator.bus import MessageBus
 from .orchestrator.scheduler import Scheduler
 from .orchestrator.tasks import TaskService
 from .policy import PolicyEngine
-from .tools.connectors import competitor_watch, knowledge, platform_tools, pricing_draft, sales_data
+from .channels.whatsapp import LANG_NAMES, WhatsAppGateway
+from .tools.connectors import competitor_watch, dealer_msg, knowledge, platform_tools, pricing_draft, sales_data
 from .tools.proxy import ToolProxy
 from .tools.registry import ToolRegistry
 
@@ -63,6 +64,9 @@ class Platform:
         pricing_draft.register(self.tools, self.pricing)
         platform_tools.register(self.tools, outbox=self.outbox, bus=self.bus, memory=self.memory,
                                 namespace_of=lambda b: self.bots.get(b).namespace)
+        self.whatsapp = WhatsAppGateway(self.db, self.audit, self.clock,
+                                        load_yaml(config_dir / "dealers.yaml").get("dealers", []))
+        dealer_msg.register(self.tools, dealer_msg.DealerMsg(self.whatsapp, self.kb))
         self.proxy = ToolProxy(self.tools, self.bots, self.policy, self.approvals, self.audit)
 
         # 任务与执行
@@ -71,9 +75,31 @@ class Platform:
                                   gateway=self.gateway, memory=self.memory, clock=self.clock)
         self.approvals.listeners.append(self.tasks.on_approval)
         self.approvals.listeners.append(self._on_pricing_approval)
+        self.whatsapp.on_dealer_message = self._on_dealer_message
+        self.whatsapp.on_handoff = self._on_wa_handoff
         self.scheduler = Scheduler(self.db, self.audit, self.clock, self.bots, self.tasks, self.runner)
         self.scheduler.maintenance += [self.approvals.tick, self.tasks.tick, self.memory.expire]
         self._stop = threading.Event()
+
+    def _on_dealer_message(self, conv: dict, dealer: dict, text: str, lang: str) -> None:
+        task = self.tasks.create(
+            bot_id="dealer-assistant", goal=f"回复经销商 {dealer['name']}：{text[:80]}", source="whatsapp",
+            # 作用域由网关决定：只能看这个经销商、这个会话（13.4）
+            requester_scope={"dealer_id": [dealer["dealer_id"]], "conversation_id": [conv["conversation_id"]],
+                             "region": [dealer["region"]]},
+        )
+        self.tasks.save_context(task["task_id"], {
+            "inbound": text, "lang": lang, "lang_name": LANG_NAMES.get(lang, "English"),
+            "conversation_id": conv["conversation_id"], "dealer_name": dealer["name"], "review_feedback": "",
+        })
+        self.runner.start(task["task_id"])
+
+    def _on_wa_handoff(self, conv: dict, reason: str) -> None:
+        dealer = self.whatsapp.dealer_of(conv) or {}
+        self.outbox.post(recipient="role:channel_manager", kind="message", card={
+            "title": f"WhatsApp 转人工：{dealer.get('name', conv['phone'])}",
+            "body": f"原因：{reason}\n会话：{conv['conversation_id']}，请在控制台 WhatsApp 页接手处理。"})
+        self.audit.append("alert", level="P3", kind="whatsapp.handoff", conversation_id=conv["conversation_id"])
 
     def _on_pricing_approval(self, rec: dict) -> None:
         if rec["tool"] != "pricing-draft.submit_suggestion":

@@ -96,6 +96,23 @@ CREATE TABLE IF NOT EXISTS outbox (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS ux_outbox_card ON outbox(card_id) WHERE card_id IS NOT NULL;
 
+CREATE TABLE IF NOT EXISTS wa_conversations (
+  conversation_id TEXT PRIMARY KEY,
+  phone TEXT UNIQUE NOT NULL, dealer_id TEXT,
+  lang TEXT, lang_source TEXT,
+  last_inbound_at TEXT, opted_out INTEGER DEFAULT 0, human_mode INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS wa_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  conversation_id TEXT NOT NULL, direction TEXT NOT NULL,
+  wamid TEXT, text TEXT, status TEXT NOT NULL, kind TEXT,
+  approval_id TEXT, task_id TEXT, flags TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_wa_wamid ON wa_messages(wamid) WHERE wamid IS NOT NULL;
+CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT);
+
 CREATE TABLE IF NOT EXISTS usage (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   ts TEXT NOT NULL, bot_id TEXT, model TEXT, trace_id TEXT,

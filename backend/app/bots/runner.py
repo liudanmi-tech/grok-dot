@@ -59,6 +59,10 @@ class StepFailed(Exception):
     pass
 
 
+class Retry(Exception):
+    """自动预审退回：带着问题重新起草（最多一次）。"""
+
+
 class Stop(Exception):
     """任务进入等待（审批、人工、预算）——停止本次执行，等待外部事件恢复。"""
 
@@ -159,6 +163,10 @@ class SkillRunner:
             self.tasks.step(task_id, i, "running")
             try:
                 result = self._exec(task, spec, ctx)
+            except Retry as r:
+                if self._retry(task, spec, i, ctx, str(r)):
+                    return self._run(task_id)
+                return
             except StepFailed as e:
                 self.tasks.step(task_id, i, "failed", str(e))
                 self.tasks.fail(task_id, f"步骤「{spec.get('title', spec['id'])}」失败：{e}")
@@ -211,7 +219,10 @@ class SkillRunner:
         if status in ("pending_approval", "returned"):
             self.tasks.link_approval(task["task_id"], res["approval_id"])
             if status == "returned":
-                raise StepFailed(f"自动预审退回：{'; '.join(i['msg'] for i in res['review']['issues'])}")
+                msg = "; ".join(i["msg"] for i in res["review"]["issues"])
+                if spec.get("retry_from"):
+                    raise Retry(msg)
+                raise StepFailed(f"自动预审退回：{msg}")
             if wait if wait is not None else spec.get("wait_approval", False):
                 self.tasks.await_approval(task["task_id"], res["approval_id"])
                 raise Stop()
@@ -242,6 +253,26 @@ class SkillRunner:
         if t["status"] == "paused":
             raise Stop()
         return out
+
+    def _retry(self, task: dict, spec: dict, index: int, ctx: dict, msg: str) -> bool:
+        tid = task["task_id"]
+        if ctx.get("_review_retries", 0) >= 1:
+            self.tasks.step(tid, index, "failed", f"自动预审再次退回：{msg}")
+            bot = self.bots.get(task["bot_id"])
+            if "dealer-msg.handoff_to_human" in bot.tools:
+                self._tool(task, "dealer-msg.handoff_to_human", {"reason": f"自动预审两次未通过：{msg}"[:300]})
+            self.tasks.needs_human(tid, f"自动预审两次未通过：{msg}")
+            return False
+        ctx["_review_retries"] = 1
+        ctx["review_feedback"] = (f"YOUR PREVIOUS DRAFT WAS REJECTED BY THE COMPLIANCE REVIEW: {msg}. "
+                                  "Rewrite it to fix these problems.")
+        steps = self.tasks.get(tid)["steps"]
+        start = next(k for k, s in enumerate(steps) if s["id"] == spec["retry_from"])
+        for s in steps[start:index + 1]:
+            s["status"] = "pending"
+        self.tasks._update(tid, steps=steps, notes=self.tasks._note(self.tasks.get(tid), f"自动预审退回，重新起草：{msg}"))
+        self.tasks.save_context(tid, ctx)
+        return True
 
     def _remember(self, task: dict, ctx: dict) -> None:
         """交付后写一条摘要类记忆（不含业务数字；被拦截则忽略）。"""

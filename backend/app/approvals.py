@@ -35,9 +35,10 @@ class RuleReviewer:
 
     def review(self, action_class: str, target: Any, payload: dict, evidence_texts: list[str]) -> dict:
         issues: list[dict] = []
-        text = " ".join(str(v) for k, v in payload.items() if isinstance(v, (str, int, float)) and k != "draft_id")
-        preview = payload.get("_preview") or ""
-        text = f"{text} {preview}"
+        # 优先审查连接器给出的待审文本（如回复正文、调价理由）；不扫描引用编号、ID 等字段
+        text = payload.get("_review_text") or " ".join(
+            str(v) for k, v in payload.items()
+            if isinstance(v, (str, int, float)) and not k.startswith("_") and not k.endswith(("_id", "_refs", "ref")))
         evidence = " ".join(evidence_texts)
         outward = action_class.startswith("send:")
         nums = {n.rstrip("%").replace(",", "") for n in NUM.findall(text) if len(n.replace(",", "")) >= 3 or n.endswith("%")}

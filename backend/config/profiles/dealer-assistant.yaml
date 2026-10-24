@@ -1,0 +1,22 @@
+id: dealer-assistant
+display_name: 经销商助理
+owner: agent-ops-lagos
+business_owner: u-channel-lagos
+service_account: svc-bot-dealer-assistant
+status: production
+scope: { country: [NG] }
+triggers: []            # 由 WhatsApp 消息事件触发
+tools:
+  - dealer-msg.get_dealer_profile
+  - dealer-msg.get_conversation
+  - dealer-msg.submit_reply
+  - dealer-msg.handoff_to_human
+  - knowledge.search
+  - knowledge.get_approved_text
+kb_visibility: [external]   # 只能检索可对外的文档
+outputs:
+  - { channel: feishu, to: role:channel_manager }
+default_skill: reply
+limits: { max_run_minutes: 5, max_tool_calls_per_run: 20, max_model_tokens_per_run: 200000 }
+memory: { namespace: bot/dealer-assistant }
+browser: false

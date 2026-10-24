@@ -68,7 +68,8 @@ class ToolProxy:
                     for fn in self.handoff_listeners:
                         fn(task_id, tool_name, args, desc)
                     return {"status": "handoff", "message": "已转交负责人处理"}
-                payload = {**args, **({"_preview": desc["preview"]} if desc.get("preview") else {})}
+                payload = {**args, **({"_preview": desc["preview"]} if desc.get("preview") else {}),
+                           **({"_review_text": desc["review_text"]} if desc.get("review_text") else {})}
                 rec = self.approvals.create(
                     bot_id=bot_id, action_class=tool.action_class, tool=tool_name, target=desc.get("target"),
                     payload=payload, evidence=desc.get("evidence", []), trace_id=trace_id, task_id=task_id,

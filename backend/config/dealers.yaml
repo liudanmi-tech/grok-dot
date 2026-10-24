@@ -1,0 +1,31 @@
+# 经销商主数据（演示用）。phones 填 E.164 去掉 +（如 2348031234567）。
+# 演示前：把你和老板的 WhatsApp 号码填到某个经销商下，未登记的号码只会收到通用话术。
+dealers:
+  - dealer_id: D1023
+    name: Ikeja Phones
+    region: Lagos
+    tier: Gold
+    lang: en
+    consent: true
+    phones: ["2348000000001"]
+  - dealer_id: D2051
+    name: Kano Mobile Hub
+    region: North
+    tier: Silver
+    lang: ha
+    consent: true
+    phones: ["2348000000002"]
+  - dealer_id: D3307
+    name: Onitsha Gadgets
+    region: South-East
+    tier: Silver
+    lang: pcm
+    consent: true
+    phones: ["2348000000003"]
+  - dealer_id: D4410
+    name: Ibadan Smart Store
+    region: South-West
+    tier: Bronze
+    lang: yo
+    consent: true
+    phones: ["2348000000004"]

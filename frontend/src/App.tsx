@@ -8,15 +8,16 @@ import Messages from "./pages/Messages";
 import Memory from "./pages/Memory";
 import Audit from "./pages/Audit";
 import Routines from "./pages/Routines";
+import WhatsApp from "./pages/WhatsApp";
 
 const PAGES = [
-  ["overview", "总览"], ["tasks", "任务"], ["approvals", "审批"], ["messages", "消息卡片"],
+  ["whatsapp", "WhatsApp"], ["overview", "总览"], ["tasks", "任务"], ["approvals", "审批"], ["messages", "消息卡片"],
   ["routines", "例程"], ["memory", "记忆"], ["audit", "审计"],
 ] as const;
 type Page = (typeof PAGES)[number][0];
 
 export default function App() {
-  const [page, setPage] = useState<Page>("overview");
+  const [page, setPage] = useState<Page>("whatsapp");
   const [user, setUser] = useState(currentUser());
   const [users, setUsers] = useState<any[]>([]);
   const [focusTask, setFocusTask] = useState<string | null>(null);
@@ -45,6 +46,7 @@ export default function App() {
         </div>
       </nav>
       <main key={user}>
+        {page === "whatsapp" && <WhatsApp />}
         {page === "overview" && <Overview openTask={openTask} />}
         {page === "tasks" && <Tasks focus={focusTask} setFocus={setFocusTask} />}
         {page === "approvals" && <Approvals />}

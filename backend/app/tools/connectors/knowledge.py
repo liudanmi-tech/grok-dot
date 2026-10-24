@@ -43,10 +43,17 @@ class KnowledgeBase:
                 "approved": bool(d.get("approved")), "visibility": d.get("visibility"),
                 "doc_type": d.get("doc_type"), "text": d["text"][:800], "score": score,
             })
+        if not out and not types:
+            # 本地语言提问时关键词可能对不上：退回到可见范围内全部已审定文档，由模型判断相关性
+            out = [{"doc_id": d["doc_id"], "title": d["title"], "version": d.get("version"), "approved": True,
+                    "visibility": d.get("visibility"), "doc_type": d.get("doc_type"), "text": d["text"][:800],
+                    "score": 0} for d in self.docs
+                   if d.get("approved") and d.get("visibility") in ctx.kb_visibility]
         out.sort(key=lambda r: r["score"], reverse=True)
         out = out[: args.get("limit", 5)]
-        top = f"{out[0]['doc_id']}#v{out[0]['version']}" if out else None
-        return {"results": out, "count": len(out), "top_ref": top, "source": "knowledge"}
+        refs = [f"{r['doc_id']}#v{r['version']}" for r in out]
+        return {"results": out, "count": len(out), "top_ref": refs[0] if refs else None, "refs": refs,
+                "source": "knowledge"}
 
     def get_approved_text(self, args: dict, ctx: ToolContext) -> dict:
         for d in self.docs:
