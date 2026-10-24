@@ -45,6 +45,7 @@ services:
       CONSOLE_USER: ${CONSOLE_USER:-admin}
       CONSOLE_PASSWORD_HASH: ${CONSOLE_PASSWORD_HASH:?在 deploy/.env 中设置 CONSOLE_PASSWORD_HASH}
       PROXY_SECRET: ${PROXY_SECRET}
+      SHARE_KEY: ${SHARE_KEY:?在 deploy/.env 中设置 SHARE_KEY（openssl rand -hex 16），为空会让 Cookie 校验失效}
     volumes:
       - caddy_data:/data
       - caddy_config:/config

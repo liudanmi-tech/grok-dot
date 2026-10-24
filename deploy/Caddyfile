@@ -1,3 +1,17 @@
+# 控制台与 /api（分享链接与基本认证两条入口共用）
+(console) {
+	handle /api/* {
+		reverse_proxy backend:8100 {
+			header_up X-Proxy-Auth {$PROXY_SECRET}
+		}
+	}
+	handle {
+		root * /srv/console
+		try_files {path} /index.html
+		file_server
+	}
+}
+
 {$DOMAIN} {
 	encode gzip
 
@@ -6,22 +20,26 @@
 		reverse_proxy backend:8100
 	}
 
-	# 控制台和 /api：加基本认证。控制台目前是 POC 模拟登录，不能裸露在公网。
+	# 分享链接：https://域名/?k=<SHARE_KEY>#/goals → 写入 30 天 Cookie 并去掉参数，之后免登录直接使用。
+	# 换一个 SHARE_KEY 并重启 caddy，旧链接与旧 Cookie 立即失效。
+	@share_link query k={$SHARE_KEY}
+	handle @share_link {
+		header Set-Cookie "ngap_share={$SHARE_KEY}; Path=/; Max-Age=2592000; HttpOnly; Secure; SameSite=Lax"
+		redir {path} 302
+	}
+
+	@shared header_regexp Cookie (^|;\s*)ngap_share={$SHARE_KEY}(;|$)
+	handle @shared {
+		import console
+	}
+
+	# 没有分享钥匙：仍走基本认证。控制台是 POC 模拟登录，不能裸露在公网。
 	# /internal 与 /v1（给 Hermes 用的内部接口）不对外转发。
 	handle {
 		basic_auth {
 			{$CONSOLE_USER} {$CONSOLE_PASSWORD_HASH}
 		}
-		handle /api/* {
-			reverse_proxy backend:8100 {
-				header_up X-Proxy-Auth {$PROXY_SECRET}
-			}
-		}
-		handle {
-			root * /srv/console
-			try_files {path} /index.html
-			file_server
-		}
+		import console
 	}
 
 	header {
