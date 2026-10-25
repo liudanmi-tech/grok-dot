@@ -7,7 +7,7 @@ import { RagPill } from "./Cockpit";
 
 const RATING: Record<string, [string, string]> = { good: ["good", "超出预期"], ok: ["", "符合预期"], behind: ["bad", "落后"] };
 
-export default function Kpi({ id, me, team, go, onChange, switchUser, extra }: any) {
+export default function Kpi({ id, me, team, go, onChange, switchUser, extra, onDecompose }: any) {
   const { data: k, error, reload } = usePoll<any>(`/kpis/${id}`, 2500);
   const [tab, setTab] = useState("overview");
   const [err, setErr] = useState<string | null>(null);
@@ -56,7 +56,7 @@ export default function Kpi({ id, me, team, go, onChange, switchUser, extra }: a
 
   return (
     <>
-      <Hero k={k} />
+      <Hero k={k} onDecompose={onDecompose} />
       {err && <div className="err">{err}</div>}
       {k.status !== "active" ? <Claim k={k} me={me} team={team} run={run} switchUser={switchUser} onHired={onChange} /> : (
         <>
@@ -142,7 +142,7 @@ function Empty({ icon, text }: { icon: string; text: string }) {
 }
 
 // 主视图：环形完成度 + 关键数字 + 每日走势
-function Hero({ k }: any) {
+function Hero({ k, onDecompose }: any) {
   const p = k.progress;
   const pct = Math.min(100, (100 * p.actual) / Math.max(1, p.target_total));
   const R = 54, C = 2 * Math.PI * R;
@@ -162,6 +162,7 @@ function Hero({ k }: any) {
           <span className="tag">{k.market?.name || "尼日利亚"} · {k.market?.currency || "NGN"}</span>
           <RagPill rag={p.rag} />
           {k.status !== "active" && <span className="pill warn">待认领</span>}
+          {onDecompose && <button className="btn sm" style={{ marginLeft: "auto" }} onClick={onDecompose}>目标分解脑图 →</button>}
         </div>
         <div className="hero-title">{k.title}</div>
         <div className="muted small">负责人 {k.owner_name || "待认领"} · 下达 {k.created_by_name} · {k.start_date} – {k.end_date} · 第 {k.week_no} 周 · 按{k.market?.city || "拉各斯"}时间</div>

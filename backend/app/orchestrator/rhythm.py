@@ -43,6 +43,16 @@ DEFAULT_OBJECTIVES = {
 }
 
 
+# 每个岗位默认的可量化周指标（模型没给出时兜底）：(指标名, 目标值, 单位)
+DEFAULT_METRICS = {
+    "market-intel": ("竞品动态清单", 5, "份"), "price-sentinel": ("获批促销 / 调价方案", 2, "个"),
+    "biz-review": ("达成率日报", 5, "份"), "content-factory": ("可用营销素材", 10, "套"),
+    "voice-of-customer": ("Top 问题清单", 1, "份"), "promoter-coach": ("培训覆盖门店", 20, "家"),
+    "channel-expansion": ("激活沉睡门店", 10, "家"), "channel-incentive": ("获批激励方案", 1, "个"),
+    "ecommerce-live": ("电商直播", 6, "场"), "campaign-planner": ("档期活动方案", 1, "份"),
+}
+
+
 class RhythmError(Exception):
     pass
 
@@ -269,8 +279,9 @@ class Rhythm:
         squad = [self._member(b) for b in k["squad"]]
         prev = self.week(k["kpi_id"], n - 1)
         system = ("你是总调度，负责把 KPI 分解成本周每个 bot 的周目标。每个 bot 一条，目标要直接服务于 KPI（销量提升），"
-                  "写清楚本周要交付什么、怎么衡量。只输出 JSON："
-                  '{"brief": "一句话本周打法", "items": [{"bot_id": "...", "objective": "...", "measure": "..."}]}')
+                  "写清楚本周要交付什么、怎么衡量，并给出一个可量化的周 KPI 指标（指标名、目标数值、单位）。只输出 JSON："
+                  '{"brief": "一句话本周打法", "items": [{"bot_id": "...", "objective": "...", "measure": "...", '
+                  '"kpi": {"name": "指标名", "target": 10, "unit": "家"}}]}')
         user = (f"KPI：{k['title']}；范围：{self._filter_text(k)}；基线日均 {round(k['baseline_daily'])} 台，目标提升 {k['uplift_pct']}%。\n"
                 f"当前进度：{self._prog_text(k, prog)}"
                 f"本周（第 {n} 周）需完成 {week_target} 台。\n小队：\n"
@@ -279,14 +290,93 @@ class Rhythm:
         parsed = self._ask(k, system, user)
         items = []
         if parsed:
-            items = [{"bot_id": i["bot_id"], "objective": str(i["objective"])[:200], "measure": str(i.get("measure", ""))[:80]}
+            items = [{"bot_id": i["bot_id"], "objective": str(i["objective"])[:200], "measure": str(i.get("measure", ""))[:80],
+                      "kpi": self._metric(i.get("kpi"), i["bot_id"])}
                      for i in parsed.get("items", []) if isinstance(i, dict) and i.get("bot_id") in k["squad"] and i.get("objective")]
         have = {i["bot_id"] for i in items}
         for b in k["squad"]:  # 兜底：每个成员都有周目标
             if b not in have:
                 obj, measure = DEFAULT_OBJECTIVES.get(self.bots.get(b).template, ("配合 KPI 推进本岗位工作", "交付物"))
-                items.append({"bot_id": b, "objective": obj, "measure": measure})
+                items.append({"bot_id": b, "objective": obj, "measure": measure, "kpi": self._metric(None, b)})
         return (parsed or {}).get("brief"), items
+
+    def _metric(self, raw, bot_id: str) -> dict:
+        """规范化每个 bot 的周 KPI 指标；模型没给或给错时用岗位默认指标。"""
+        if isinstance(raw, dict) and raw.get("name"):
+            try:
+                target = float(raw.get("target"))
+                return {"name": str(raw["name"])[:30], "target": int(target) if target == int(target) else target,
+                        "unit": str(raw.get("unit") or "")[:6], "source": "plan"}
+            except (TypeError, ValueError):
+                pass
+        name, target, unit = DEFAULT_METRICS.get(self.bots.get(bot_id).template, ("交付物", 3, "份"))
+        return {"name": name, "target": target, "unit": unit, "source": "default"}
+
+    def plan_week(self, kpi_id: str, week_no: int, *, actor: str) -> dict:
+        """主管手动为某一周生成分解（含未来的周），形成里程碑。"""
+        k = self._row(kpi_id)
+        if k["status"] != "active":
+            raise RhythmError("KPI 还没有被认领")
+        total = (date.fromisoformat(k["end_date"]) - date.fromisoformat(k["start_date"])).days // 7 + 1
+        if not 1 <= week_no <= total:
+            raise RhythmError(f"周次超出范围（1–{total}）")
+        d = date.fromisoformat(k["start_date"]) + timedelta(days=7 * (week_no - 1))
+        w = self.ensure_week(kpi_id, d)
+        self.audit.append("kpi.week_plan_manual", actor=actor, kpi_id=kpi_id, week_no=week_no)
+        return w
+
+    # ---------- 目标分解脑图：KPI → 周里程碑 → 每个 bot 的周指标 → 具体任务 ----------
+    def decomposition(self, kpi_id: str) -> dict:
+        k = self.kpi(kpi_id)
+        p = k["progress"]
+        start, end = date.fromisoformat(k["start_date"]), date.fromisoformat(k["end_date"])
+        today = self.day_of(k)
+        as_of = p["as_of"]
+        daily = {s["date"]: s["actual"] for s in p["series"]}
+        weeks = {w["week_no"]: w for w in self.weeks(kpi_id)}
+        standups = self.db.query("SELECT day, mission_task_id FROM meetings WHERE kpi_id=? AND kind='standup' ORDER BY day", [kpi_id])
+        tasks_by_week: dict[int, dict[str, list]] = {}
+        for m in standups:
+            wn = self.week_no(k, date.fromisoformat(m["day"]))
+            for r in self._results(m["mission_task_id"]):
+                tasks_by_week.setdefault(wn, {}).setdefault(r["bot_id"], []).append(
+                    {"task_id": r["task_id"], "goal": r["goal"], "status": r["status"], "status_label": r["status_label"],
+                     "day": m["day"], "chat_id": m["mission_task_id"]})
+        n_weeks = (end - start).days // 7 + 1
+        milestones = []
+        for n in range(1, n_weeks + 1):
+            ws = start + timedelta(days=7 * (n - 1))
+            we = min(ws + timedelta(days=6), end)
+            days = [(ws + timedelta(days=i)).isoformat() for i in range((we - ws).days + 1)]
+            actual = sum(daily.get(d) or 0 for d in days if as_of and d <= as_of)
+            w = weeks.get(n)
+            target = w["target_units"] if w else round(p["target_daily"] * len(days))
+            elapsed = sum(1 for d in days if as_of and d <= as_of)
+            expected = target * elapsed / len(days)
+            if today > we:
+                status = "done" if actual >= target else "missed"
+            elif today >= ws:
+                status = "current" if not elapsed or actual >= expected * 0.95 else "behind"
+            else:
+                status = "upcoming"
+            agents = []
+            for item in (w["items"] if w else []):
+                ts = tasks_by_week.get(n, {}).get(item["bot_id"], [])
+                b = self.bots.get(item["bot_id"])
+                meta = self.bots.meta.get(b.template, {})
+                agents.append({"bot_id": b.id, "name": b.display_name, "color": meta.get("color", "#64748b"),
+                               "objective": item["objective"], "measure": item.get("measure"),
+                               "kpi": item.get("kpi") or self._metric(None, b.id), "tasks": ts,
+                               "done": sum(1 for t in ts if t["status"] in ("delivered", "accepted")), "total": len(ts)})
+            milestones.append({"week_no": n, "start": ws.isoformat(), "end": we.isoformat(), "target_units": target,
+                               "actual_units": actual, "expected_units": round(expected), "status": status,
+                               "planned": bool(w), "plan_status": w["status"] if w else None,
+                               "brief": w["brief"] if w else None, "agents": agents})
+        return {"kpi": {"kpi_id": k["kpi_id"], "title": k["title"], "owner": k["owner"], "owner_name": k["owner_name"],
+                        "status": k["status"], "start": k["start_date"], "end": k["end_date"], "market": k["market"],
+                        "progress": {x: p[x] for x in ("actual", "expected", "target_total", "pace", "rag", "lift_pct",
+                                                        "days_elapsed", "days_total")}},
+                "milestones": milestones, "current_week": self.week_no(k, today)}
 
     # ================= 晨会 =================
     def _klock(self, kpi_id: str) -> threading.Lock:

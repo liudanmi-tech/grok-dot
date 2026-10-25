@@ -79,3 +79,23 @@ def test_api_and_permissions(p):
     assert c.get(f"/api/kpis/{k['kpi_id']}").json()["channel"][-1]["text"] == "大家加油"
     tree = c.get("/api/kpis").json()
     assert tree[0]["progress"]["rag"] is None and tree[0]["owner_name"] == "Lagos 销售主管"
+
+
+def test_decomposition_tree(p, clock):
+    c = TestClient(create_app(p))
+    k = _kpi(p)
+    kid = k["kpi_id"]
+    clock.advance(hours=2)
+    p.rhythm.tick()                                          # 晨会：第 1 周任务
+    t = c.get(f"/api/kpis/{kid}/tree").json()
+    assert len(t["milestones"]) == 4 and t["current_week"] == 1
+    w1 = t["milestones"][0]
+    assert w1["planned"] and w1["status"] in ("current", "behind") and len(w1["agents"]) == 3
+    a = w1["agents"][0]
+    assert a["kpi"]["name"] and a["kpi"]["target"] > 0 and a["total"] >= 1 and a["tasks"][0]["chat_id"]
+    assert not t["milestones"][2]["planned"] and t["milestones"][2]["status"] == "upcoming"
+    assert c.post(f"/api/kpis/{kid}/weeks/3/plan", headers={"X-User-Id": "u-staff-lagos-tecno"}).status_code == 403
+    assert c.post(f"/api/kpis/{kid}/weeks/9/plan", headers={"X-User-Id": LEAD}).status_code == 400
+    c.post(f"/api/kpis/{kid}/weeks/3/plan", headers={"X-User-Id": LEAD})
+    w3 = c.get(f"/api/kpis/{kid}/tree").json()["milestones"][2]
+    assert w3["planned"] and w3["start"] == "2026-11-17" and len(w3["agents"]) == 3

@@ -1,11 +1,12 @@
 import { lazy, Suspense, useEffect, useState } from "react";
-import { Box, Globe2, LayoutGrid, Plus } from "lucide-react";
+import { Box, GitBranch, Globe2, LayoutGrid, Plus } from "lucide-react";
 import { post } from "../api";
 import { usePoll } from "../hooks";
 import { setDemoMarket } from "../ui";
 import { ConvRow } from "./Chats";
 import { KpiBar, NewKpi, RagPill } from "./Cockpit";
 import Kpi from "./Kpi";
+import MindMap from "./MindMap";
 
 const Office3D = lazy(() => import("./Office3D"));  // three.js 只在切到 3D 时加载
 
@@ -17,6 +18,7 @@ export default function Goals({ id, me, team, go, onChange, switchUser, autoNew 
   const [mode, setMode] = useState<"2d" | "3d">(() => { try { return (localStorage.getItem("goals.mode") as any) || "2d"; } catch { return "2d"; } });
   const [open, setOpen] = useState(!!autoNew);
   const [showAll, setShowAll] = useState(false);
+  const [mapKpi, setMapKpi] = useState<string | null>(null);
   useEffect(() => { if (autoNew) setOpen(true); }, [autoNew]);
   useEffect(() => { try { localStorage.setItem("goals.mode", mode); } catch { /* 忽略 */ } }, [mode]);
 
@@ -82,6 +84,8 @@ export default function Goals({ id, me, team, go, onChange, switchUser, autoNew 
                     <span className={`chip ${k.today?.standup ? "ok" : ""}`}>晨会</span>
                     <span className={`chip ${k.today?.review === "done" ? "ok" : k.today?.review ? "wait" : ""}`}>晚会</span>
                     <span>第 {k.progress.days_elapsed}/{k.progress.days_total} 天</span>
+                    <button className="btn sm tile-btn" onClick={(e) => { e.stopPropagation(); setMapKpi(k.kpi_id); }} title="按时间分解成里程碑，再分到每个数字员工">
+                      <GitBranch size={12} />分解</button>
                   </div>
                 </div>
               );
@@ -90,7 +94,7 @@ export default function Goals({ id, me, team, go, onChange, switchUser, autoNew 
 
           {mode === "3d" ? (selected ? <Suspense fallback={<div className="card muted">加载 3D 办公室…</div>}><Office3D key={selected} kpiId={selected} go={go} /></Suspense>
             : <Office3DPlaceholder />) : (
-            selected && <Kpi key={selected} id={selected} me={me} team={team} go={go} onChange={() => { reload(); onChange?.(); }} switchUser={switchUser}
+            selected && <Kpi key={selected} id={selected} me={me} team={team} go={go} onChange={() => { reload(); onChange?.(); }} switchUser={switchUser} onDecompose={() => setMapKpi(selected)}
               extra={(
                 <div className="card">
                   <div className="card-head">
@@ -105,6 +109,7 @@ export default function Goals({ id, me, team, go, onChange, switchUser, autoNew 
           )}
         </>
       )}
+      {mapKpi && <MindMap kpiId={mapKpi} me={me} go={(p: string) => { setMapKpi(null); go(p); }} onClose={() => setMapKpi(null)} />}
       {open && <NewKpi users={users.data || []} parents={data || []} onClose={() => { setOpen(false); if (autoNew) go("goals"); }}
         onDone={(k: any) => { setOpen(false); reload(); onChange?.(); go(`goals/${k.kpi_id}`); }} />}
     </>

@@ -388,6 +388,19 @@ def kpi_week_confirm(kpi_id: str, week_no: int, body: WeekIn, p=Depends(P), user
     return guard(p.rhythm.confirm_week, kpi_id, week_no, actor=user["id"], items=body.items)
 
 
+@router.get("/kpis/{kpi_id}/tree")
+def kpi_tree_view(kpi_id: str, p=Depends(P)):
+    return guard(p.rhythm.decomposition, kpi_id)
+
+
+@router.post("/kpis/{kpi_id}/weeks/{week_no}/plan")
+def kpi_week_plan(kpi_id: str, week_no: int, p=Depends(P), user=Depends(current_user)):
+    k = guard(p.rhythm._row, kpi_id)
+    if user["id"] != k["owner"]:
+        _need(user, "country_manager", "agent_ops")
+    return guard(p.rhythm.plan_week, kpi_id, week_no, actor=user["id"])
+
+
 @router.post("/kpis/{kpi_id}/standup")
 def kpi_standup(kpi_id: str, p=Depends(P), user=Depends(current_user)):
     k = guard(p.rhythm._row, kpi_id)
