@@ -19,6 +19,7 @@ from .orchestrator.bus import MessageBus
 from .orchestrator.coordinator import Coordinator
 from .orchestrator.rhythm import Rhythm
 from .skill_packs import SkillPacks
+from . import field_reports
 from .orchestrator.scheduler import Scheduler
 from .orchestrator.tasks import TaskService
 from .policy import PolicyEngine
@@ -76,7 +77,9 @@ class Platform:
         platform_tools.register(self.tools, outbox=self.outbox, bus=self.bus, memory=self.memory,
                                 namespace_of=lambda b: self.bots.get(b).namespace)
         self.whatsapp = WhatsAppGateway(self.db, self.audit, self.clock,
-                                        load_yaml(config_dir / "dealers.yaml").get("dealers", []))
+                                        load_yaml(config_dir / "dealers.yaml").get("dealers", []),
+                                        load_yaml(config_dir / "promoters.yaml").get("promoters", [])
+                                        if (config_dir / "promoters.yaml").exists() else [])
         dealer_msg.register(self.tools, dealer_msg.DealerMsg(self.whatsapp, self.kb))
         self.proxy = ToolProxy(self.tools, self.bots, self.policy, self.approvals, self.audit)
 
@@ -87,9 +90,13 @@ class Platform:
         self.runner.skill_packs = self.skill_packs
         self.coordinator = Coordinator(tasks=self.tasks, bots=self.bots, gateway=self.gateway, runner=self.runner,
                                        memory=self.memory)
+        self.field = field_reports.FieldReports(db=self.db, audit=self.audit, clock=self.clock, whatsapp=self.whatsapp,
+                                                gateway=self.gateway, bots=self.bots)
+        field_reports.register(self.tools, self.field)
         self.rhythm = Rhythm(db=self.db, audit=self.audit, clock=self.clock, bots=self.bots, tasks=self.tasks,
                              coordinator=self.coordinator, gateway=self.gateway, sales=self.sales, memory=self.memory,
                              outbox=self.outbox, users=self.users)
+        self.rhythm.field = self.field
         self._load_demo_state()
         self.approvals.listeners.append(self.tasks.on_approval)
         self.approvals.listeners.append(self._on_pricing_approval)

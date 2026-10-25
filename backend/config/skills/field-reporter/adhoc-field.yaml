@@ -1,0 +1,30 @@
+name: field-reporter/adhoc-field
+version: 1.0.0
+owner: agent-ops-lagos
+bots: [field-reporter, biz-review]
+description: 汇总一线促销员当天的 WhatsApp 报数，对照系统动销，列出未报数的人
+steps:
+  - id: field
+    title: 汇总促销员今日报数
+    type: tool
+    tool: field-reports.query_summary
+    args: {}
+    est_minutes: 1
+  - id: sales
+    title: 对照近 14 天系统动销
+    type: tool
+    tool: sales-data.query_sell_through
+    args: { days: 14, group_by: [region, model] }
+    est_minutes: 1
+  - id: answer
+    title: 整理一线日报
+    type: llm
+    task_type: analyze
+    data_class: internal
+    output: true
+    est_minutes: 2
+    system: 你是{{market.name}}市场的一线日报员。基于促销员报数整理当日一线日报：已报 / 未报人数与名单、门店与型号排行、与系统动销节奏的对比（标注【推断】），以及需要主管跟进的事项。只依据给定数据。
+    prompt: |
+      任务：{{goal}}
+      一线报数：{{steps.field.result|json}}
+      系统动销：{{steps.sales.result|json}}

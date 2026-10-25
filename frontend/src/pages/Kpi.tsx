@@ -73,6 +73,7 @@ export default function Kpi({ id, me, team, go, onChange, switchUser, extra, onD
             <div className="split">
               <div className="stack">
                 {squadCard}
+                <FieldCard k={k} go={go} />
                 <Initiatives k={k} week={week} byId={byId} go={go} />
                 {extra}
               </div>
@@ -175,6 +176,26 @@ function BonusPanel({ k, me, run }: any) {
             {n.days_left >= 0 && <span className="muted"> · 剩 {n.days_left} 天</span>}</div>
         ) : <div className="small muted">本 KPI 奖金已结算</div>}
         <div className="muted small">⏰ 21:00 前主持晚会 +{money(b, b.actions.reward_each)} / 次 · 已得 {b.actions.review_on_time} 次</div>
+      </div>
+    </div>
+  );
+}
+
+function FieldCard({ k, go }: any) {
+  const country = k.filter?.country?.[0] || "NG";
+  const region = k.filter?.region?.[0];
+  const { data: s } = usePoll<any>(`/field-reports?country=${country}${region ? `&region=${encodeURIComponent(region)}` : ""}`, 5000);
+  if (!s || !s.promoters) return null;
+  return (
+    <div className="card">
+      <div className="card-head"><h2>今日一线上报</h2><a className="small" style={{ cursor: "pointer" }} onClick={() => go("field")}>一线日报 →</a></div>
+      <div className="row" style={{ gap: 18 }}>
+        <div><div className="muted small">促销员上报</div><b style={{ fontSize: 22 }}>{s.total_units}</b><span className="muted"> 台</span></div>
+        <div><div className="muted small">已报</div><b style={{ fontSize: 22 }}>{s.reported}</b><span className="muted"> / {s.promoters} 人</span></div>
+        <div style={{ flex: 1, minWidth: 200 }} className="small">
+          {s.by_store.slice(0, 3).map((x: any) => <div key={x.store} className="ellipsis">🏪 {x.store} · <b>{x.units}</b> 台</div>)}
+          {s.missing.length > 0 && <div className="muted ellipsis">⏳ 未报：{s.missing.map((m: any) => m.name).join("、")}</div>}
+        </div>
       </div>
     </div>
   );

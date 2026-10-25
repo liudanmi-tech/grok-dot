@@ -146,6 +146,11 @@ CREATE TABLE IF NOT EXISTS kb_docs (
   approved INTEGER, text TEXT, created_by TEXT, created_at TEXT, updated_by TEXT, updated_at TEXT, approved_by TEXT,
   deleted INTEGER DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS field_reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  day TEXT NOT NULL, ts TEXT NOT NULL, promoter_id TEXT NOT NULL, promoter_name TEXT, store TEXT, region TEXT, country TEXT,
+  sku TEXT, model TEXT, brand TEXT, units INTEGER, raw TEXT, conversation_id TEXT, source TEXT
+);
 CREATE TABLE IF NOT EXISTS channel_messages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   kpi_id TEXT NOT NULL, ts TEXT NOT NULL, author TEXT, author_kind TEXT, kind TEXT, text TEXT, ref TEXT

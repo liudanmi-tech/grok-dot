@@ -105,3 +105,12 @@ templates:
     capabilities: [档期规划, 让利组合, 分期与以旧换新, 活动节奏]
     autonomy: 草稿 · 价格类需审批
     phase: 第二阶段
+  - id: field-reporter
+    name: 一线日报员
+    title: Field Report Collector (WhatsApp)
+    color: "#0284c7"
+    summary: 驻店促销员在 WhatsApp 随手报数（任意语言），自动整理成日报、即时回执；傍晚列出未报数的人一键提醒，数据进晚会复盘。
+    capabilities: [WhatsApp 报数, 多语言识别, 自动回执与打卡, 未报提醒]
+    autonomy: 一级 · 回执自动
+    channel: WhatsApp
+    phase: 第二阶段

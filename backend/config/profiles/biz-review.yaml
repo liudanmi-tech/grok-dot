@@ -13,6 +13,7 @@ tools:
   - knowledge.search
   - notify.notify_internal
   - bus.read
+  - field-reports.query_summary
   - memory.propose
 outputs:
   - { channel: feishu, to: group:ng-management }

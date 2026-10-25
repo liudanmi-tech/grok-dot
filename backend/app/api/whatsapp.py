@@ -34,7 +34,9 @@ async def inbound(request: Request, x_hub_signature_256: str | None = Header(Non
 @router.get("/api/wa/status")
 def status(p=Depends(P)):
     return {"live": p.whatsapp.live, "killswitch": p.whatsapp.killswitch(),
-            "dealers": [{k: d[k] for k in ("dealer_id", "name", "region", "lang", "phones")} for d in p.whatsapp.dealers]}
+            "dealers": [{k: d[k] for k in ("dealer_id", "name", "region", "lang", "phones")} for d in p.whatsapp.dealers],
+            "promoters": [{k: x[k] for k in ("promoter_id", "name", "store", "region", "country", "lang", "phones")}
+                          for x in p.whatsapp.promoters]}
 
 
 @router.get("/api/wa/conversations")

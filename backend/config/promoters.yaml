@@ -1,0 +1,10 @@
+# 驻店促销员（演示用）。phones 填 E.164 去掉 +。促销员在 WhatsApp 上报当天销量，由「一线日报员」整理。
+promoters:
+  - { promoter_id: P-NG-01, name: Chioma, store: "Ikeja Phones · Computer Village", region: Lagos, country: NG, lang: en, phones: ["2348100000011"] }
+  - { promoter_id: P-NG-02, name: Tunde, store: "Lekki Mobile Plaza", region: Lagos, country: NG, lang: pcm, phones: ["2348100000012"] }
+  - { promoter_id: P-NG-03, name: Aisha, store: "Yaba Gadget Hub", region: Lagos, country: NG, lang: en, phones: ["2348100000013"] }
+  - { promoter_id: P-NG-04, name: Musa, store: "Kano Mobile Hub", region: North, country: NG, lang: en, phones: ["2348100000014"] }
+  - { promoter_id: P-ID-01, name: Rina, store: "Erafone · Mangga Dua", region: Jakarta, country: ID, lang: id, phones: ["6281200000021"] }
+  - { promoter_id: P-ID-02, name: Budi, store: "Toko Sinar Jaya · Tanah Abang", region: Jakarta, country: ID, lang: id, phones: ["6281200000022"] }
+  - { promoter_id: P-ID-03, name: Siti, store: "Global Teleshop · Kelapa Gading", region: Jakarta, country: ID, lang: id, phones: ["6281200000023"] }
+  - { promoter_id: P-ID-04, name: Agus, store: "Cell Mandiri · Bandung", region: Jawa Barat, country: ID, lang: id, phones: ["6281200000024"] }

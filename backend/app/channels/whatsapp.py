@@ -67,12 +67,15 @@ def normalize_phone(p: str) -> str:
 
 
 class WhatsAppGateway:
-    def __init__(self, db: DB, audit: AuditLog, clock: Clock, dealers: list[dict]):
+    def __init__(self, db: DB, audit: AuditLog, clock: Clock, dealers: list[dict], promoters: list[dict] | None = None):
         self.db = db
         self.audit = audit
         self.clock = clock
         self.dealers = dealers
         self.phone_to_dealer = {normalize_phone(ph): d for d in dealers for ph in d.get("phones", [])}
+        self.promoters = promoters or []
+        self.phone_to_promoter = {normalize_phone(ph): pr for pr in self.promoters for ph in pr.get("phones", [])}
+        self.on_field_report: Callable[[dict, dict, str], dict] | None = None  # 促销员报数 → 一线日报员
         self.on_dealer_message: Callable[[dict, dict, str], None] | None = None  # 建任务交给经销商助理
         self.on_handoff: Callable[[dict, str], None] | None = None
 
@@ -183,6 +186,14 @@ class WhatsAppGateway:
         self._log(conv, "in", body or f"[{msg_type}]", "received", wamid=wamid, flags=flags)
         self.audit.append("message.inbound", channel="whatsapp", conversation_id=conv["conversation_id"],
                           dealer_id=conv["dealer_id"], simulated=simulated, flags=flags)
+
+        promoter = self.phone_to_promoter.get(conv["phone"])
+        if promoter and self.on_field_report:  # 驻店促销员：报数走一线日报员，不进经销商助理
+            if not body:
+                self.send_fixed(conv, "text_only")
+                return {"status": "non_text"}
+            return {"status": "field_report", "conversation_id": conv["conversation_id"],
+                    **self.on_field_report(conv, promoter, body)}
 
         dealer = self.dealer_of(conv)
         if not dealer:

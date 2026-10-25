@@ -694,3 +694,11 @@ main { padding-bottom: 96px; }
 .bonus-toast { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); background: rgba(255,255,255,.95); color: #7a4b00; font-weight: 800;
   font-size: 22px; padding: 18px 28px; border-radius: 22px; box-shadow: 0 20px 60px rgba(255,159,10,.35); animation: toastIn .5s cubic-bezier(.2,1.4,.4,1); }
 @keyframes toastIn { from { transform: translate(-50%, -50%) scale(.6); opacity: 0; } }
+
+/* 一线日报 */
+.rank-row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(60px, 1fr) 36px; gap: 10px; align-items: center; padding: 6px 0; font-size: 13px; }
+.rank-row em { font-style: normal; color: var(--quiet); }
+.rank-row b { text-align: right; }
+.rank-bar { height: 8px; background: rgba(0,0,0,.06); border-radius: 6px; overflow: hidden; }
+.rank-bar i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, #0a84ff, #5e5ce6); }
+.rank-bar.green i { background: linear-gradient(90deg, #30d158, #34c759); }

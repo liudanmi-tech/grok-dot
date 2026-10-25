@@ -29,7 +29,7 @@ export default function WhatsApp() {
         </div>
       </header>
       {err && <div className="err">{err}</div>}
-      <Simulator dealers={status.data?.dealers || []} onSent={(cid) => { convs.reload(); if (cid) setSel(cid); }} />
+      <Simulator dealers={status.data?.dealers || []} promoters={status.data?.promoters || []} onSent={(cid) => { convs.reload(); if (cid) setSel(cid); }} />
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,260px) minmax(0,1fr)", gap: 12 }}>
         <div className="card" style={{ padding: 8 }}>
           {!convs.data?.length && <div className="muted" style={{ padding: 8 }}>还没有会话。用上方模拟器或手机给测试号发消息。</div>}
@@ -49,7 +49,7 @@ export default function WhatsApp() {
   );
 }
 
-function Simulator({ dealers, onSent }: { dealers: any[]; onSent: (cid?: string) => void }) {
+function Simulator({ dealers, promoters = [], onSent }: { dealers: any[]; promoters?: any[]; onSent: (cid?: string) => void }) {
   const [phone, setPhone] = useState("");
   const [text, setText] = useState("");
   const [err, setErr] = useState<string | null>(null);
@@ -66,7 +66,8 @@ function Simulator({ dealers, onSent }: { dealers: any[]; onSent: (cid?: string)
       <div className="muted" style={{ marginBottom: 6 }}>经销商模拟器：以经销商身份发消息，处理流程与真实 Webhook 完全相同</div>
       <div className="row">
         <select value={phone} onChange={(e) => setPhone(e.target.value)}>
-          {dealers.map((d) => d.phones.map((p: string) => <option key={p} value={p}>{d.name}（{d.region}）+{p}</option>))}
+          <optgroup label="经销商 → 经销商助理">{dealers.map((d) => d.phones.map((p: string) => <option key={p} value={p}>{d.name}（{d.region}）+{p}</option>))}</optgroup>
+          <optgroup label="促销员 → 一线日报员">{promoters.map((d: any) => <option key={d.phones[0]} value={d.phones[0]}>{d.name} · {d.store} +{d.phones[0]}</option>)}</optgroup>
           <option value="2348099999999">未登记号码 +2348099999999</option>
         </select>
         <input style={{ flex: 1, minWidth: 240 }} value={text} placeholder="输入经销商的消息" onChange={(e) => setText(e.target.value)}

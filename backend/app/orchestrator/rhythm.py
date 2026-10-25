@@ -590,7 +590,10 @@ class Rhythm:
                   "给出建议评级和一句话建议；再列出风险和明天的调整建议。只输出 JSON："
                   '{"summary": "...", "per_bot": [{"bot_id": "...", "suggested": "good|ok|behind", "assessment": "..."}], '
                   '"risks": ["..."], "tomorrow": ["..."]}')
+        field = getattr(self, "field", None)
+        field_txt = field.text_for_review(self.market(k)["code"], k["filter"].get("region")) if field else ""
         user = (f"KPI：{k['title']}；进度：{self._prog_text(k, prog)}\n"
+                + (f"{field_txt}\n" if field_txt else "") +
                 f"今天各 bot 结果：{json.dumps(results, ensure_ascii=False)}")
         parsed = (self._ask(k, system, user) if results else None) or {}
         per_bot = {p["bot_id"]: p for p in parsed.get("per_bot", []) if isinstance(p, dict) and p.get("bot_id")}

@@ -501,6 +501,23 @@ def employees(p=Depends(P)):
     return out
 
 
+# ---------- 一线日报（促销员 WhatsApp 报数） ----------
+@router.get("/field-reports")
+def field_reports_summary(country: str = "NG", day: str | None = None, region: str | None = None, p=Depends(P)):
+    return p.field.summary(country, day, [region] if region else None)
+
+
+class RemindIn(BaseModel):
+    country: str = "NG"
+    region: str | None = None
+
+
+@router.post("/field-reports/remind")
+def field_reports_remind(body: RemindIn, p=Depends(P), user=Depends(current_user)):
+    _need(user, "supervisor", "country_manager", "channel_manager", "agent_ops")
+    return p.field.remind(body.country, actor=user["id"], region=[body.region] if body.region else None)
+
+
 # ---------- 技能广场 ----------
 @router.get("/skill-plaza")
 def skill_plaza(p=Depends(P)):
