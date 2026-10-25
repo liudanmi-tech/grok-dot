@@ -496,9 +496,15 @@ def employees(p=Depends(P)):
         card = _bot_card(p, b)
         meta = p.bots.meta.get(b.template, {})
         card.update({"summary": meta.get("summary"), "capabilities": meta.get("capabilities", []),
-                     "skills": [s["name"] for s in p.skills.for_template(b.template)], "growth": conv.growth(p, b.id)})
+                     "skills": [s["name"] for s in p.skills.for_template(b.template)], "growth": conv.growth(p, b.id),
+                     "group": p.bots.group_of(b.template)})
         out.append(card)
     return out
+
+
+@router.get("/employee-groups")
+def employee_groups(p=Depends(P)):
+    return p.bots.groups
 
 
 # ---------- 一线日报（促销员 WhatsApp 报数） ----------

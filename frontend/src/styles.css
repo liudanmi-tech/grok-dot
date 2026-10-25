@@ -702,3 +702,11 @@ main { padding-bottom: 96px; }
 .rank-bar { height: 8px; background: rgba(0,0,0,.06); border-radius: 6px; overflow: hidden; }
 .rank-bar i { display: block; height: 100%; border-radius: 6px; background: linear-gradient(90deg, #0a84ff, #5e5ce6); }
 .rank-bar.green i { background: linear-gradient(90deg, #30d158, #34c759); }
+
+/* 数字员工分组 */
+.team-group { margin-bottom: 28px; }
+.team-group-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  margin: 0 2px 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line, rgba(0,0,0,.08)); }
+.team-group-head h2 { margin: 0; font-size: 18px; letter-spacing: -.01em; }
+.team-group-head p { margin: 2px 0 0; }
+.team-group-empty { padding: 4px 2px 8px; }

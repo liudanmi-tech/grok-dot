@@ -1,6 +1,6 @@
 import { Award, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
 import { usePoll } from "../hooks";
-import { ActivityPill, Avatar } from "../ui";
+import { ActivityPill, Avatar, countryOf } from "../ui";
 
 export function LevelBadge({ g }: { g: any }) {
   const pct = g.next_xp ? Math.min(100, (100 * g.xp) / g.next_xp) : 100;
@@ -15,8 +15,14 @@ export function LevelBadge({ g }: { g: any }) {
 
 export default function Team({ go }: any) {
   const { data } = usePoll<any[]>("/employees", 5000);
-  const list = [...(data || [])].sort((a, b) => Number(b.template === "chief-of-staff") - Number(a.template === "chief-of-staff"));
-  const count = (k: string) => list.filter((b) => b.activity === k).length;
+  const { data: groups } = usePoll<any[]>("/employee-groups", 0);
+  const list = data || [];
+  const count = (k: string, xs: any[] = list) => xs.filter((b) => b.activity === k).length;
+  // 组内顺序：按组里岗位顺序，同岗位先尼日利亚后印尼
+  const sections = [...(groups || []), { id: null, name: "未分组", desc: "", templates: [] }].map((g) => ({
+    ...g, members: list.filter((b) => (b.group ?? null) === g.id).sort((a, b) =>
+      g.templates.indexOf(a.template) - g.templates.indexOf(b.template) || (countryOf(a.scope) === "ID" ? 1 : 0) - (countryOf(b.scope) === "ID" ? 1 : 0)),
+  })).filter((g) => g.members.length || g.id);
   return (
     <>
       <div className="page-head">
@@ -26,8 +32,22 @@ export default function Team({ go }: any) {
         </div>
         <button className="btn primary" onClick={() => go("library")}><Sparkles size={14} />从智能体库招募</button>
       </div>
+      {sections.map((sec) => (
+      <section key={sec.id || "none"} className="team-group">
+        <div className="team-group-head">
+          <div>
+            <h2>{sec.name}<span className="muted"> · {sec.members.length} 名</span></h2>
+            {sec.desc && <p className="muted small">{sec.desc}</p>}
+          </div>
+          <div className="row small" style={{ gap: 8 }}>
+            {sec.lead && <span className="tag">对口：{sec.lead}</span>}
+            {count("working", sec.members) > 0 && <span className="pill info">干活中 {count("working", sec.members)}</span>}
+            {count("needs_you", sec.members) > 0 && <span className="pill warn">等你处理 {count("needs_you", sec.members)}</span>}
+          </div>
+        </div>
+        {!sec.members.length && <div className="muted small team-group-empty">还没有成员，可到智能体库招募。</div>}
       <div className="grid g3">
-        {list.map((b) => {
+        {sec.members.map((b: any) => {
           const g = b.growth;
           return (
             <div key={b.id} className="card agent" onClick={() => go(`bot/${b.id}`)}>
@@ -54,6 +74,8 @@ export default function Team({ go }: any) {
           );
         })}
       </div>
+      </section>
+      ))}
     </>
   );
 }

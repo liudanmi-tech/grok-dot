@@ -1,5 +1,25 @@
 # 智能体库：7 个岗位模板的展示信息（技术方案第 15 节）。工具、技能、例程见 profiles/ 与 skills/。
 team_seed: [chief-of-staff, market-intel, biz-review, price-sentinel, dealer-assistant]
+# 数字员工按职能分 3 组，各对口一位真人负责人（users.yaml 里的角色）；总调度统筹三组，编在参谋指挥组。
+groups:
+  - id: command
+    name: 参谋指挥组
+    desc: 看数、找问题、定打法——统筹分派、经营复盘、竞品情报、价格动销
+    lead_role: country_manager
+    lead: 国家经理
+    templates: [chief-of-staff, biz-review, market-intel, price-sentinel]
+  - id: channel
+    name: 渠道销售组
+    desc: 管经销商、门店和促销员，把货卖出去——经销商支持、渠道拓展与激励、一线报数、促销员辅导
+    lead_role: channel_manager
+    lead: 渠道经理
+    templates: [dealer-assistant, channel-expansion, channel-incentive, field-reporter, promoter-coach]
+  - id: marketing
+    name: 市场营销组
+    desc: 拉动需求——本地化内容、活动档期、电商直播、用户之声
+    lead_role: brand_manager
+    lead: 品牌经理
+    templates: [content-factory, campaign-planner, ecommerce-live, voice-of-customer]
 templates:
   - id: chief-of-staff
     name: 总调度

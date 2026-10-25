@@ -49,6 +49,9 @@ class Bot:
 
 
 class BotRegistry:
+    def group_of(self, template: str) -> str | None:
+        return next((g["id"] for g in self.groups if template in g.get("templates", [])), None)
+
     def __init__(self, profiles_dir: Path, db: DB | None = None, meta_path: Path | None = None,
                  seed: list[str] | None = None, clock=None):
         self.templates: dict[str, dict] = {}
@@ -56,8 +59,11 @@ class BotRegistry:
             d = load_yaml(p)
             self.templates[d["id"]] = d
         self.meta: dict[str, dict] = {}
+        self.groups: list[dict] = []
         if meta_path and meta_path.exists():
-            self.meta = {m["id"]: m for m in load_yaml(meta_path).get("templates", [])}
+            raw = load_yaml(meta_path)
+            self.meta = {m["id"]: m for m in raw.get("templates", [])}
+            self.groups = raw.get("groups", [])
         self.db = db
         self.clock = clock
         self._mem: dict[str, dict] = {}  # 无数据库时（单元测试）的内存登记表
