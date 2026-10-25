@@ -388,6 +388,12 @@ def kpi_week_confirm(kpi_id: str, week_no: int, body: WeekIn, p=Depends(P), user
     return guard(p.rhythm.confirm_week, kpi_id, week_no, actor=user["id"], items=body.items)
 
 
+@router.get("/kpis/{kpi_id}/improve")
+def kpi_improve(kpi_id: str, p=Depends(P)):
+    from .. import improvements
+    return guard(improvements.build, p, kpi_id)
+
+
 @router.get("/kpis/{kpi_id}/tree")
 def kpi_tree_view(kpi_id: str, p=Depends(P)):
     return guard(p.rhythm.decomposition, kpi_id)

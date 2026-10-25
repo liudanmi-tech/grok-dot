@@ -19,6 +19,7 @@ import Settings from "./pages/Settings";
 import Chats from "./pages/Chats";
 import Chat from "./pages/Chat";
 import Team from "./pages/Team";
+import Improve from "./pages/Improve";
 import SkillPlaza from "./pages/SkillPlaza";
 import Knowledge from "./pages/Knowledge";
 import FieldReports from "./pages/FieldReports";
@@ -109,6 +110,7 @@ export default function App() {
       <main key={user} className={page === "chat" ? "wide" : ""}>
         <DemoClock onChange={() => { kpis.reload(); team.reload(); ov.reload(); convs.reload(); }} />
         {page === "goals" && <Goals id={goalId} me={me} team={team6} go={go} onChange={() => { kpis.reload(); team.reload(); }} switchUser={switchUser} autoNew={route[1] === "new"} />}
+        {page === "improve" && route[1] && <Improve id={route[1]} go={go} />}
         {page === "chats" && <Chats team={team6} go={go} />}
         {page === "chat" && route[1] && <Chat id={route[1]} team={team6} users={users} go={go} />}
         {page === "team" && <Team go={go} />}

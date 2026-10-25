@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, Moon, Sun } from "lucide-react";
+import { ArrowUp, Lightbulb, Moon, Sun } from "lucide-react";
 import { post } from "../api";
 import { usePoll } from "../hooks";
 import { ActivityPill, Avatar, celebrate, countryOf, DeliverableCard, Markdown, MARKETS, money, TaskPill, timeAgo } from "../ui";
@@ -56,7 +56,7 @@ export default function Kpi({ id, me, team, go, onChange, switchUser, extra, onD
 
   return (
     <>
-      <Hero k={k} onDecompose={onDecompose} />
+      <Hero k={k} onDecompose={onDecompose} go={go} />
       <BonusPanel k={k} me={me} run={run} />
       {err && <div className="err">{err}</div>}
       {k.status !== "active" ? <Claim k={k} me={me} team={team} run={run} switchUser={switchUser} onHired={onChange} /> : (
@@ -206,7 +206,7 @@ function Empty({ icon, text }: { icon: string; text: string }) {
 }
 
 // 主视图：环形完成度 + 关键数字 + 每日走势
-function Hero({ k, onDecompose }: any) {
+function Hero({ k, onDecompose, go }: any) {
   const p = k.progress;
   const pct = Math.min(100, (100 * p.actual) / Math.max(1, p.target_total));
   const R = 54, C = 2 * Math.PI * R;
@@ -228,7 +228,11 @@ function Hero({ k, onDecompose }: any) {
           {k.status !== "active" && <span className="pill warn">待认领</span>}
           {onDecompose && <button className="btn sm" style={{ marginLeft: "auto" }} onClick={onDecompose}>目标分解脑图 →</button>}
         </div>
-        <div className="hero-title">{k.title}</div>
+        <div className="row" style={{ gap: 12, flexWrap: "nowrap", alignItems: "center" }}>
+          <div className="hero-title" style={{ minWidth: 0 }}>{k.title}</div>
+          {k.status === "active" && <button className="btn-improve" onClick={() => go(`improve/${k.kpi_id}`)} title="结合进度、数字员工的进程与反馈，生成改进建议">
+            <Lightbulb size={14} />改进建议</button>}
+        </div>
         <div className="muted small">负责人 {k.owner_name || "待认领"} · 下达 {k.created_by_name} · {k.start_date} – {k.end_date} · 第 {k.week_no} 周 · 按{k.market?.city || "拉各斯"}时间</div>
         <div className="hero-stats">
           <div><span>实际 / 目标</span><b>{p.actual.toLocaleString()}<small> / {p.target_total.toLocaleString()} 台</small></b></div>
