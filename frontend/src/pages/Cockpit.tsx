@@ -14,12 +14,21 @@ export function RagPill({ rag }: { rag?: string | null }) {
   return <span className={`pill ${cls}`}>{text}</span>;
 }
 
-export function KpiBar({ p }: { p: any }) {
+const TIER_TIP: Record<string, string> = { claimed: "已领取", unlocked: "已解锁 · 点击领取", missed: "已错过", pending: "未解锁" };
+
+export function KpiBar({ p, bonus, onClaim }: { p: any; bonus?: any; onClaim?: (t: any) => void }) {
   const pct = (v: number) => `${Math.min(100, (100 * v) / Math.max(1, p.target_total))}%`;
   return (
-    <div className="kpibar" title={`实际 ${p.actual} / 应完成 ${p.expected} / 总目标 ${p.target_total}`}>
+    <div className={`kpibar ${bonus ? "with-bonus" : ""}`} title={`实际 ${p.actual} / 应完成 ${p.expected} / 总目标 ${p.target_total}`}>
       <i className={`fill ${p.rag || ""}`} style={{ width: pct(p.actual) }} />
       {p.expected > 0 && <b className="mark" style={{ left: pct(p.expected) }} />}
+      {bonus?.tiers?.map((t: any) => (
+        <button key={t.no} className={`gift ${t.status}`} style={{ left: `${Math.max(1.5, Math.min(98.5, t.pos_pct))}%` }}
+          title={`${t.label}：${t.deadline.slice(5)} 前达到 ${t.threshold.toLocaleString()} 台 → 奖金 ${bonus.sign}${t.amount.toLocaleString()}（${TIER_TIP[t.status]}）`}
+          onClick={(e) => { e.stopPropagation(); if (t.status === "unlocked") onClaim?.(t); }}>
+          {t.status === "claimed" ? "🏆" : t.status === "missed" ? "·" : "🎁"}
+        </button>
+      ))}
     </div>
   );
 }

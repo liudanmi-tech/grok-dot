@@ -5,7 +5,7 @@ import { Html, OrbitControls, useAnimations, useGLTF } from "@react-three/drei";
 import * as THREE from "three";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
 import { usePoll } from "../hooks";
-import { initials } from "../ui";
+import { initials, money } from "../ui";
 
 const F = (n: string) => `/office/furniture/${n}.glb`;
 const CHARS = ["male-a", "female-a", "male-b", "female-b", "male-c", "female-c", "male-d", "female-d", "male-e", "female-e", "male-f", "female-f"]
@@ -197,6 +197,7 @@ function KpiBoard({ k }: { k: any }) {
     <Html zIndexRange={[10, 0]} position={[-1.2, 0.98, -3.24]} transform distanceFactor={2.6} occlude={false}>
       <div className="o3-board">
         <div className="o3-board-title">{k.title}</div>
+        {k.bonus && <div className="o3-row" style={{ marginBottom: 4 }}><span>🏆 奖金 {money(k.bonus, k.bonus.earned)} / {money(k.bonus, k.bonus.pool)}</span></div>}
         <div className="o3-big">{p.actual.toLocaleString()}<span> / {p.target_total.toLocaleString()} 台</span></div>
         <div className="o3-bar"><i style={{ width: `${pct}%` }} className={p.rag || ""} /><b style={{ left: `${exp}%` }} /></div>
         <div className="o3-row"><span>节奏 {p.pace == null ? "—" : Math.round(p.pace * 100) + "%"}</span><span>较基线 {p.lift_pct == null ? "—" : p.lift_pct + "%"}</span><span>第 {p.days_elapsed}/{p.days_total} 天</span></div>
@@ -446,6 +447,9 @@ export default function Office3D({ kpiId, go }: { kpiId: string; go: (p: string)
         <b>{k.market?.city || ""} {clock.data?.now?.slice(11, 16)}</b>
         {meeting ? <span className="pill info">{meeting}</span> : <span className="pill">{clock.data?.phase === "review" ? "下班时间" : "办公时间"}</span>}
         <span className="muted small">干活中 {counts.working || 0} · 待命 {counts.idle || 0} · 等你 {counts.needs_you || 0} · 下班 {counts.off_duty || 0}</span>
+        {k.bonus && <span className="o3-bonus">🏆 已获 <b>{money(k.bonus, k.bonus.earned)}</b>
+          {k.bonus.unclaimed > 0 ? <em className="hot"> · 🎁 {money(k.bonus, k.bonus.unclaimed)} 待领取</em>
+            : k.bonus.next && <em> · 下一档差 {k.bonus.next.remaining.toLocaleString()} 台</em>}</span>}
         <span className="muted small" style={{ marginLeft: "auto" }}>拖动旋转 · 滚轮缩放 · 点人物看卡片</span>
       </div>
       <Canvas shadows camera={{ position: [8.5, 9.5, 11], fov: 30 }} dpr={[1, 2]} onPointerMissed={(e: any) => { if (!(e.target as HTMLElement)?.closest?.(".o3-tag, .o3-card")) setSel(null); }}>

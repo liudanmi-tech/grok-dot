@@ -221,3 +221,27 @@ export function setDemoMarket(code: string) {
   try { localStorage.setItem("demo.market", code); } catch { /* 忽略 */ }
   window.dispatchEvent(new Event("demo-market"));
 }
+
+// ---------- 奖金：金额格式与领取庆祝（撒花 + 提示，纯 CSS 动画） ----------
+export const money = (b: any, v: number) => `${b?.sign || ""}${Math.round(v || 0).toLocaleString()}`;
+
+export function celebrate(text: string) {
+  const root = document.createElement("div");
+  root.className = "confetti";
+  const colors = ["#ff9f0a", "#ffd60a", "#30d158", "#0a84ff", "#ff375f", "#bf5af2"];
+  for (let i = 0; i < 90; i++) {
+    const s = document.createElement("i");
+    s.style.left = `${Math.random() * 100}%`;
+    s.style.background = colors[i % colors.length];
+    s.style.animationDelay = `${Math.random() * 0.4}s`;
+    s.style.animationDuration = `${1.6 + Math.random() * 1.2}s`;
+    s.style.transform = `rotate(${Math.random() * 360}deg)`;
+    root.appendChild(s);
+  }
+  const toast = document.createElement("div");
+  toast.className = "bonus-toast";
+  toast.textContent = text;
+  root.appendChild(toast);
+  document.body.appendChild(root);
+  setTimeout(() => root.remove(), 3200);
+}

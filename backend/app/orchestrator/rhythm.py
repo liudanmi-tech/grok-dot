@@ -53,6 +53,13 @@ DEFAULT_METRICS = {
 }
 
 
+# 奖金：激励真人员工用 AI 冲目标。按时达到里程碑即解锁（负责人领取），按时主持晚会自动奖励
+BONUS_POOL = {"NG": 600000, "ID": 6000000}
+REVIEW_REWARD = {"NG": 5000, "ID": 50000}
+REVIEW_DEADLINE_HOUR = 21
+CURRENCY_SIGN = {"NGN": "₦", "IDR": "Rp"}
+
+
 class RhythmError(Exception):
     pass
 
@@ -195,6 +202,7 @@ class Rhythm:
     def kpi(self, kpi_id: str, *, detail: bool = False) -> dict:
         k = self._row(kpi_id)
         k["progress"] = self.progress(k)
+        k["bonus"] = self.bonus(k, k["progress"])
         k["owner_name"] = self._uname(k["owner"])
         k["created_by_name"] = self._uname(k["created_by"])
         k["week_no"] = self.week_no(k, self.day_of(k))
@@ -324,6 +332,96 @@ class Rhythm:
         w = self.ensure_week(kpi_id, d)
         self.audit.append("kpi.week_plan_manual", actor=actor, kpi_id=kpi_id, week_no=week_no)
         return w
+
+    # ---------- 奖金（游戏化即时反馈） ----------
+    def _bonus_state(self, kpi_id: str) -> dict:
+        r = self.db.one("SELECT v FROM kv WHERE k=?", [f"bonus.{kpi_id}"])
+        return json.loads(r["v"]) if r else {}
+
+    def _bonus_save(self, kpi_id: str, st: dict) -> None:
+        with self.db.lock:
+            self.db.execute("DELETE FROM kv WHERE k=?", [f"bonus.{kpi_id}"])
+            self.db.execute("INSERT INTO kv(k, v) VALUES (?, ?)", [f"bonus.{kpi_id}", json.dumps(st, ensure_ascii=False)])
+
+    def bonus(self, k: dict, prog: dict | None = None) -> dict:
+        prog = prog or self.progress(k)
+        mk = self.market(k)
+        st = self._bonus_state(k["kpi_id"])
+        pool = st.get("pool") or BONUS_POOL.get(mk["code"], 600000)
+        start, end = date.fromisoformat(k["start_date"]), date.fromisoformat(k["end_date"])
+        today = self.day_of(k)
+        n_weeks = (end - start).days // 7 + 1
+        td = prog["target_daily"]
+        # 里程碑：开门红（前 3 天达到 5%）→ 每周累计目标 → 最终 100%
+        specs = [("开门红", start + timedelta(days=2), prog["target_total"] * 0.05, 0.05)]
+        for n in range(1, n_weeks):
+            we = start + timedelta(days=7 * n - 1)
+            specs.append((f"第 {n} 周里程碑", we, td * ((we - start).days + 1), 0.60 / max(1, n_weeks - 1)))
+        specs.append(("最终目标", end, prog["target_total"], 0.35))
+        cum, running = {}, 0
+        for s in prog["series"]:
+            running += s["actual"] or 0
+            cum[s["date"]] = running
+        claims = st.get("claims", {})
+        tiers = []
+        for i, (label, deadline, threshold, share) in enumerate(specs):
+            threshold = round(threshold)
+            reached = next((d for d, v in cum.items() if v >= threshold and d <= deadline.isoformat()), None)
+            if str(i) in claims:
+                status = "claimed"
+            elif reached:
+                status = "unlocked"
+            elif today > deadline:
+                status = "missed"
+            else:
+                status = "pending"
+            tiers.append({"no": i, "label": label, "deadline": deadline.isoformat(), "threshold": threshold,
+                          "pos_pct": round(min(100, 100 * threshold / max(1, prog["target_total"])), 2),
+                          "amount": round(pool * share, -2), "status": status, "reached_on": reached,
+                          "remaining": max(0, threshold - prog["actual"]), "days_left": (deadline - today).days,
+                          "claimed_at": (claims.get(str(i)) or {}).get("at"), "claimed_by": (claims.get(str(i)) or {}).get("by")})
+        reward = REVIEW_REWARD.get(mk["code"], 5000)
+        on_time = 0
+        tz = tz_of(mk)
+        for m in self.db.query("SELECT day, updated_at FROM meetings WHERE kpi_id=? AND kind='review' AND status='done'", [k["kpi_id"]]):
+            t = datetime.fromisoformat(m["updated_at"]).astimezone(tz)
+            if t.date().isoformat() == m["day"] and t.hour < REVIEW_DEADLINE_HOUR:
+                on_time += 1
+        claimed = sum(t["amount"] for t in tiers if t["status"] == "claimed")
+        nxt = next((t for t in tiers if t["status"] in ("pending", "unlocked")), None)
+        return {"currency": mk["currency"], "sign": CURRENCY_SIGN.get(mk["currency"], ""), "pool": pool, "tiers": tiers,
+                "claimed": claimed, "actions": {"review_on_time": on_time, "reward_each": reward, "total": on_time * reward},
+                "earned": claimed + on_time * reward, "unclaimed": sum(t["amount"] for t in tiers if t["status"] == "unlocked"),
+                "next": nxt}
+
+    def claim_bonus(self, kpi_id: str, tier_no: int, *, actor: str) -> dict:
+        k = self._row(kpi_id)
+        if k["owner"] != actor:
+            raise RhythmError("只有 KPI 负责人可以领取奖金")
+        b = self.bonus(k)
+        tier = next((t for t in b["tiers"] if t["no"] == tier_no), None)
+        if not tier:
+            raise RhythmError("没有这一档奖金")
+        if tier["status"] != "unlocked":
+            raise RhythmError({"claimed": "这一档已经领取过了", "missed": "已过截止时间，未解锁",
+                               "pending": "还没有达到解锁条件"}[tier["status"]])
+        st = self._bonus_state(kpi_id)
+        st.setdefault("claims", {})[str(tier_no)] = {"at": iso(self.clock.now()), "by": actor}
+        self._bonus_save(kpi_id, st)
+        amount = f"{b['sign']}{tier['amount']:,.0f}"
+        self.audit.append("kpi.bonus_claim", actor=actor, kpi_id=kpi_id, tier=tier_no, amount=tier["amount"], currency=b["currency"])
+        self.say(kpi_id, actor, "user", "bonus", f"🎉 解锁奖金「{tier['label']}」{amount}！提前完成 {tier['threshold']:,} 台目标，继续冲下一档。")
+        return self.bonus(self._row(kpi_id))
+
+    def set_bonus_pool(self, kpi_id: str, pool: float, *, actor: str) -> dict:
+        k = self._row(kpi_id)
+        if not 0 < pool <= 1e10:
+            raise RhythmError("奖金池金额不合理")
+        st = self._bonus_state(kpi_id)
+        st["pool"] = pool
+        self._bonus_save(kpi_id, st)
+        self.audit.append("kpi.bonus_pool", actor=actor, kpi_id=kpi_id, pool=pool)
+        return self.bonus(k)
 
     # ---------- 目标分解脑图：KPI → 周里程碑 → 每个 bot 的周指标 → 具体任务 ----------
     def decomposition(self, kpi_id: str) -> dict:

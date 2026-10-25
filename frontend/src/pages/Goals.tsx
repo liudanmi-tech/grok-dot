@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { Box, GitBranch, Globe2, LayoutGrid, Plus } from "lucide-react";
 import { post } from "../api";
 import { usePoll } from "../hooks";
-import { setDemoMarket } from "../ui";
+import { celebrate, money, setDemoMarket } from "../ui";
 import { ConvRow } from "./Chats";
 import { KpiBar, NewKpi, RagPill } from "./Cockpit";
 import Kpi from "./Kpi";
@@ -39,6 +39,11 @@ export default function Goals({ id, me, team, go, onChange, switchUser, autoNew 
     setSeeding(true);
     try { const r = await post("/demo/seed/indonesia"); reload(); onChange?.(); switchUser("u-lead-jakarta"); go(`goals/${r.kpi_id}`); }
     catch (e: any) { alert(e.message); } finally { setSeeding(false); }
+  };
+  const claim = async (k: any, t: any) => {
+    if (me?.id !== k.owner) { alert(`奖金由 KPI 负责人（${k.owner_name}）领取`); return; }
+    try { await post(`/kpis/${k.kpi_id}/bonus/${t.no}/claim`); celebrate(`🎉 解锁「${t.label}」奖金 +${money(k.bonus, t.amount)}`); reload(); onChange?.(); }
+    catch (e: any) { alert(e.message); }
   };
   const create = () => { if (canCreate) setOpen(true); else { go("goals/new"); switchUser("u-country-manager"); } };
 
@@ -78,7 +83,12 @@ export default function Goals({ id, me, team, go, onChange, switchUser, autoNew 
                   </div>
                   <div className="kpi-tile-num"><b>{k.progress.actual.toLocaleString()}</b><span> / {k.progress.target_total.toLocaleString()} 台</span>
                     <em>{pct < 10 ? pct.toFixed(1) : Math.round(pct)}%</em></div>
-                  <KpiBar p={k.progress} />
+                  <KpiBar p={k.progress} bonus={k.bonus} onClaim={(t: any) => claim(k, t)} />
+                  <div className="kpi-tile-bonus">
+                    <span>🏆 已获 <b>{money(k.bonus, k.bonus.earned)}</b><em> / 池 {money(k.bonus, k.bonus.pool)}</em></span>
+                    {k.bonus.unclaimed > 0 ? <span className="unlock-hint">🎁 可领取 {money(k.bonus, k.bonus.unclaimed)}</span>
+                      : k.bonus.next && <span className="muted">{k.bonus.next.label}：差 {k.bonus.next.remaining.toLocaleString()} 台</span>}
+                  </div>
                   <div className="kpi-tile-foot">
                     <span>{k.status === "active" ? k.owner_name : `待 ${k.owner_name || "负责人"} 认领`}</span>
                     <span className={`chip ${k.today?.standup ? "ok" : ""}`}>晨会</span>

@@ -401,6 +401,21 @@ def kpi_week_plan(kpi_id: str, week_no: int, p=Depends(P), user=Depends(current_
     return guard(p.rhythm.plan_week, kpi_id, week_no, actor=user["id"])
 
 
+@router.post("/kpis/{kpi_id}/bonus/{tier_no}/claim")
+def kpi_bonus_claim(kpi_id: str, tier_no: int, p=Depends(P), user=Depends(current_user)):
+    return guard(p.rhythm.claim_bonus, kpi_id, tier_no, actor=user["id"])
+
+
+class PoolIn(BaseModel):
+    pool: float
+
+
+@router.put("/kpis/{kpi_id}/bonus/pool")
+def kpi_bonus_pool(kpi_id: str, body: PoolIn, p=Depends(P), user=Depends(current_user)):
+    _need(user, "country_manager")
+    return guard(p.rhythm.set_bonus_pool, kpi_id, body.pool, actor=user["id"])
+
+
 @router.post("/kpis/{kpi_id}/standup")
 def kpi_standup(kpi_id: str, p=Depends(P), user=Depends(current_user)):
     k = guard(p.rhythm._row, kpi_id)

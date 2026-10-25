@@ -99,3 +99,32 @@ def test_decomposition_tree(p, clock):
     c.post(f"/api/kpis/{kid}/weeks/3/plan", headers={"X-User-Id": LEAD})
     w3 = c.get(f"/api/kpis/{kid}/tree").json()["milestones"][2]
     assert w3["planned"] and w3["start"] == "2026-11-17" and len(w3["agents"]) == 3
+
+
+def test_bonus_unlock_claim_and_review_reward(p, clock):
+    c = TestClient(create_app(p))
+    k = _kpi(p)
+    kid = k["kpi_id"]
+    b = c.get(f"/api/kpis/{kid}").json()["bonus"]
+    assert b["currency"] == "NGN" and b["pool"] == 600000 and b["earned"] == 0
+    assert [t["label"] for t in b["tiers"]][:2] == ["开门红", "第 1 周里程碑"] and b["tiers"][-1]["label"] == "最终目标"
+    assert all(t["status"] == "pending" for t in b["tiers"])
+    # 促销见效：销量大涨 → 前 3 天就达到 5%，开门红解锁
+    p.sales.effects = [{"from": "2026-11-03", "region": "Lagos", "brand": "TECNO", "pct": 0.6}]
+    clock.advance(days=2)
+    b = c.get(f"/api/kpis/{kid}").json()["bonus"]
+    assert b["tiers"][0]["status"] == "unlocked" and b["unclaimed"] == b["tiers"][0]["amount"]
+    assert c.post(f"/api/kpis/{kid}/bonus/0/claim", headers={"X-User-Id": CM}).status_code == 400   # 只有负责人
+    assert c.post(f"/api/kpis/{kid}/bonus/1/claim", headers={"X-User-Id": LEAD}).status_code == 400  # 还没解锁
+    b = c.post(f"/api/kpis/{kid}/bonus/0/claim", headers={"X-User-Id": LEAD}).json()
+    assert b["tiers"][0]["status"] == "claimed" and b["earned"] == b["tiers"][0]["amount"] == 30000
+    assert any(m["kind"] == "bonus" for m in p.rhythm.channel(kid))
+    assert c.put(f"/api/kpis/{kid}/bonus/pool", json={"pool": 1000000}, headers={"X-User-Id": LEAD}).status_code == 403
+    assert c.put(f"/api/kpis/{kid}/bonus/pool", json={"pool": 1000000}, headers={"X-User-Id": CM}).json()["pool"] == 1000000
+    # 按时（21:00 前）主持晚会：自动奖励
+    clock.advance(hours=13)                                  # 当天 19:00（拉各斯）
+    p.rhythm.tick()
+    p.rhythm.prepare_review(kid)
+    p.rhythm.submit_review(kid, actor=LEAD, ratings={})
+    b = p.rhythm.kpi(kid)["bonus"]
+    assert b["actions"]["review_on_time"] == 1 and b["actions"]["total"] == 5000

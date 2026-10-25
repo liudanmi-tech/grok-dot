@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowUp, Moon, Sun } from "lucide-react";
 import { post } from "../api";
 import { usePoll } from "../hooks";
-import { ActivityPill, Avatar, countryOf, DeliverableCard, Markdown, MARKETS, TaskPill, timeAgo } from "../ui";
-import { RagPill } from "./Cockpit";
+import { ActivityPill, Avatar, celebrate, countryOf, DeliverableCard, Markdown, MARKETS, money, TaskPill, timeAgo } from "../ui";
+import { KpiBar, RagPill } from "./Cockpit";
 
 const RATING: Record<string, [string, string]> = { good: ["good", "超出预期"], ok: ["", "符合预期"], behind: ["bad", "落后"] };
 
@@ -57,6 +57,7 @@ export default function Kpi({ id, me, team, go, onChange, switchUser, extra, onD
   return (
     <>
       <Hero k={k} onDecompose={onDecompose} />
+      <BonusPanel k={k} me={me} run={run} />
       {err && <div className="err">{err}</div>}
       {k.status !== "active" ? <Claim k={k} me={me} team={team} run={run} switchUser={switchUser} onHired={onChange} /> : (
         <>
@@ -134,6 +135,48 @@ export default function Kpi({ id, me, team, go, onChange, switchUser, extra, onD
         </>
       )}
     </>
+  );
+}
+
+// 奖金面板：已获 / 奖金池、下一档提示、可领取的奖金按钮、按时复盘奖励
+function BonusPanel({ k, me, run }: any) {
+  const b = k.bonus;
+  if (!b || k.status !== "active") return null;
+  const owner = me?.id === k.owner;
+  const unlocked = b.tiers.filter((t: any) => t.status === "unlocked");
+  const claim = (t: any) => run(async () => {
+    await post(`/kpis/${k.kpi_id}/bonus/${t.no}/claim`);
+    celebrate(`🎉 解锁「${t.label}」奖金 +${money(b, t.amount)}`);
+  });
+  const n = b.next;
+  return (
+    <div className="card bonus-panel">
+      <div className="bonus-earned">
+        <span className="trophy">🏆</span>
+        <div><div className="small muted">已获奖金</div><b>{money(b, b.earned)}</b><span className="muted"> / 奖金池 {money(b, b.pool)}</span></div>
+      </div>
+      <div className="bonus-track">
+        <KpiBar p={k.progress} bonus={b} onClaim={(t: any) => owner ? claim(t) : alert(`奖金由 KPI 负责人（${k.owner_name}）领取`)} />
+        <div className="bonus-tiers">
+          {b.tiers.map((t: any) => (
+            <span key={t.no} className={`tier ${t.status}`} title={`${t.deadline} 前达到 ${t.threshold.toLocaleString()} 台`}>
+              {t.status === "claimed" ? "🏆" : t.status === "unlocked" ? "🎁" : t.status === "missed" ? "✕" : "🔒"} {t.label} · {money(b, t.amount)}
+              <em>{t.status === "claimed" ? "已领取" : t.status === "unlocked" ? "待领取" : t.status === "missed" ? "已错过" : `${t.deadline.slice(5)} 前`}</em>
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="bonus-cta">
+        {unlocked.length ? unlocked.map((t: any) => (
+          <button key={t.no} className="btn claim" disabled={!owner} onClick={() => claim(t)} title={owner ? "" : `由 ${k.owner_name} 领取`}>
+            🎁 领取 {money(b, t.amount)}</button>
+        )) : n ? (
+          <div className="small"><b>下一档：{n.label}</b><br />再卖 <b>{n.remaining.toLocaleString()}</b> 台，{n.deadline.slice(5)} 前解锁 <b>{money(b, n.amount)}</b>
+            {n.days_left >= 0 && <span className="muted"> · 剩 {n.days_left} 天</span>}</div>
+        ) : <div className="small muted">本 KPI 奖金已结算</div>}
+        <div className="muted small">⏰ 21:00 前主持晚会 +{money(b, b.actions.reward_each)} / 次 · 已得 {b.actions.review_on_time} 次</div>
+      </div>
+    </div>
   );
 }
 
