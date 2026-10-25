@@ -172,6 +172,39 @@ class FieldReports:
         return (f"一线促销员今日上报：{s['reported']}/{s['promoters']} 人已报，合计 {s['total_units']} 台；"
                 f"门店前三：{top}；型号：{models}；未报：{miss}。")
 
+    # ---------- 演示数据：走真实流程（识别、入库、回执），报数时间分散在当天 ----------
+    DEMO_MSGS = {
+        "NG": [["Morning sales: Spark x2, Pop 9 x1", "Afternoon 3 spark don go, 1 camon 40", "Evening: Hot 50 x2, A70 x1"],
+               ["Abeg 4 spark don go, 1 note 40", "2 pop 9 for afternoon"],
+               ["Today: Camon 40 x2, Hot 50 x1", "I sell 2 spark and 1 note 40 this evening"],
+               None],  # 最后一位故意不报，演示「未报提醒」
+        "ID": [["Pagi: Hot 60i x3, GT 30 x1", "Siang jual 2 Note 50", "Sore: GT 30 x2, A90 x3"],
+               ["Jual 2 Hot 60i, Spark 40 x4", "POVA 7 x2"],
+               ["Hari ini GT 30 x3, Hot 60i x1", "3 unit Spark 40 sore ini"],
+               None],
+    }
+    DEMO_HOURS = [(9, 40), (13, 15), (17, 50)]
+
+    def seed_demo(self, country: str, *, actor: str) -> dict:
+        from datetime import datetime, timedelta
+        day = self._day(country)
+        if self.db.one("SELECT 1 FROM field_reports WHERE country=? AND day=?", [country, day]):
+            return {"seeded": 0, "note": "今天已经有上报数据"}
+        tz = tz_of(market(country))
+        now = self.clock.now().astimezone(tz)
+        n = 0
+        for p, msgs in zip(self.promoters(country), self.DEMO_MSGS.get(country, [])):
+            for i, text in enumerate(msgs or []):
+                before = self.db.one("SELECT COALESCE(MAX(id), 0) m FROM field_reports")["m"]
+                self.whatsapp.receive(p["phones"][0], text, simulated=True)
+                h, mnt = self.DEMO_HOURS[i % len(self.DEMO_HOURS)]
+                at = datetime(now.year, now.month, now.day, h, (mnt + 7 * n) % 60, tzinfo=tz)
+                at = min(at, now - timedelta(minutes=5 * (len(msgs) - i)))  # 不会出现「未来」的报数时间
+                self.db.execute("UPDATE field_reports SET ts=? WHERE id>?", [iso(at), before])
+                n += 1
+        self.audit.append("field_report.demo_seed", actor=actor, country=country, messages=n)
+        return {"seeded": n}
+
     def remind(self, country: str, *, actor: str, region: list[str] | None = None) -> dict:
         sent, failed = [], []
         for m in self.summary(country, region=region)["missing"]:

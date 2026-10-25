@@ -64,3 +64,15 @@ def test_tool_and_review_material(p, clock):
     clock.advance(hours=11)
     p.rhythm.prepare_review(k["kpi_id"])
     assert "一线促销员今日上报" in seen["user"] and "合计 4 台" in seen["user"]
+
+
+def test_demo_seed(p):
+    c = TestClient(create_app(p))
+    h = {"X-User-Id": "u-agent-ops"}
+    r = c.post("/api/field-reports/demo", json={"country": "NG"}, headers=h).json()
+    assert r["seeded"] == 7
+    s = c.get("/api/field-reports", params={"country": "NG"}).json()
+    assert s["reported"] == 3 and s["promoters"] == 4 and [m["name"] for m in s["missing"]] == ["Musa"]
+    assert s["total_units"] == 23 and len({x["ts"] for x in s["rows"]}) > 1      # 时间分散
+    assert c.post("/api/field-reports/demo", json={"country": "NG"}, headers=h).json()["seeded"] == 0   # 不重复
+    assert c.post("/api/field-reports/demo", json={"country": "ID"}, headers=h).json()["seeded"] == 7

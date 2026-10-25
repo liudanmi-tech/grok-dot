@@ -30,6 +30,10 @@ export default function FieldReports({ me }: any) {
           <p>驻店促销员在 WhatsApp 随手报数（英语 / 皮钦语 / 印尼语 / 中文都行），一线日报员自动识别型号和台数、即时回执；当天第一条即打卡，数据进晚会复盘。</p>
         </div>
         <div className="row">
+          {canRemind && s && !s.reports && (
+            <button className="btn" onClick={async () => { await post("/field-reports/demo", { country }); reload(); }} title="模拟促销员在 WhatsApp 上报（走真实识别与回执流程）">
+              生成示例数据</button>
+          )}
           <div className="seg">{Object.entries(MARKETS).map(([c, m]) => (
             <button key={c} className={country === c ? "on" : ""} onClick={() => { setCountry(c); setRegion(""); }}>{m.name}</button>))}</div>
           <select value={region} onChange={(e) => setRegion(e.target.value)}>

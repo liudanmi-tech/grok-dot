@@ -512,6 +512,16 @@ class RemindIn(BaseModel):
     region: str | None = None
 
 
+class SeedIn(BaseModel):
+    country: str = "NG"
+
+
+@router.post("/field-reports/demo")
+def field_reports_demo(body: SeedIn, p=Depends(P), user=Depends(current_user)):
+    _need(user, "supervisor", "country_manager", "channel_manager", "agent_ops")
+    return p.field.seed_demo(body.country, actor=user["id"])
+
+
 @router.post("/field-reports/remind")
 def field_reports_remind(body: RemindIn, p=Depends(P), user=Depends(current_user)):
     _need(user, "supervisor", "country_manager", "channel_manager", "agent_ops")
