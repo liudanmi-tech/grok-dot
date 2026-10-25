@@ -46,3 +46,18 @@ def test_runner_and_coordinator_deliver_cards(p, monkeypatch):
     r = c.get(f"/api/tasks/{kid['task_id']}/outputs/0/html")
     assert r.status_code == 200 and "text/html" in r.headers["content-type"] and "default-src 'none'" in r.headers["content-security-policy"]
     assert c.get(f"/api/tasks/{kid['task_id']}/outputs/5/html").status_code == 404
+
+
+def test_charts_dashboard_and_tolerant_json():
+    raw = dict(RAW, charts=[{"type": "pie", "title": "型号占比", "unit": "台", "data": [{"label": "Spark", "value": "1,196"}, {"label": "Pop", "value": 300}]},
+                            {"type": "pie", "title": "环比", "data": [{"label": "A", "value": -5}, {"label": "B", "value": 3}]}])
+    text = json.dumps(raw, ensure_ascii=False).replace("X6851", "X6851\t1,196")   # 字符串里混入制表符也能解析
+    c = parse_card(text)
+    assert c and c["charts"][0]["type"] == "pie" and c["charts"][0]["data"][0]["value"] == 1196
+    assert c["charts"][1]["type"] == "bar"                                         # 含负数的饼图降级为条形图
+    h = card_to_html(c, bot_name="b", bot_title="t", color="#dc2626", when="w", model=None, goal=None, trace_id=None)
+    assert "<script" not in h and 'data-metric="1"' in h and 'data-slice="1"' in h and "<svg" in h
+    assert "型号占比" in card_to_markdown(c)
+    # 没给图表时从表格数值列自动生成
+    auto = parse_card(json.dumps(dict(RAW, table={"columns": ["型号", "销量"], "rows": [["A", "120"], ["B", "80 台"]]}), ensure_ascii=False))
+    assert auto["charts"][0]["auto"] and [x["value"] for x in auto["charts"][0]["data"]] == [120, 80]

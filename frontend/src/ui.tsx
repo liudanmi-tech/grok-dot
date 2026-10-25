@@ -153,9 +153,12 @@ export function Markdown({ text }: { text: string }) {
   return <div className="md">{blocks}</div>;
 }
 
+export type CardAction = { kind?: "act" | "metric" | "slice"; text: string; owner?: string; due?: string;
+  label?: string; value?: string; delta?: string; chart?: string; pct?: string };
+
 // ---------- 交付卡片：服务端渲染的独立 HTML，沙箱 iframe 嵌入（无脚本），高度随内容 ----------
 export function DeliverableCard({ taskId, index, fallback, fold = true, onAction }: { taskId: string; index: number; fallback?: string; fold?: boolean;
-  onAction?: (a: { text: string; owner: string; due: string }) => void }) {
+  onAction?: (a: CardAction) => void }) {
   const [doc, setDoc] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   const [h, setH] = useState(240);
@@ -175,7 +178,13 @@ export function DeliverableCard({ taskId, index, fallback, fold = true, onAction
     if (onAction) {  // 卡片无脚本；由外层页面挂点击：「下一步」→ 在对话里继续推进
       d.body.classList.add("interactive");
       d.querySelectorAll<HTMLElement>("[data-act]").forEach((el) => {
-        el.onclick = () => onAction({ text: el.dataset.text || "", owner: el.dataset.owner || "", due: el.dataset.due || "" });
+        el.onclick = () => onAction({ kind: "act", text: el.dataset.text || "", owner: el.dataset.owner || "", due: el.dataset.due || "" });
+      });
+      // 数据面板也可点：指标卡 / 饼图扇区 / 图例 / 条形 → 发起深入分析
+      d.querySelectorAll<HTMLElement | SVGElement>("[data-metric],[data-slice]").forEach((el) => {
+        const ds = (el as HTMLElement).dataset;
+        (el as HTMLElement).onclick = () => onAction({ kind: ds.metric ? "metric" : "slice", text: ds.label || "", label: ds.label,
+          value: ds.value, delta: ds.delta, chart: ds.chart, pct: ds.pct });
       });
     }
     measure();

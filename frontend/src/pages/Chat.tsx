@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ArrowUp, CheckSquare, FileText, ListChecks, Sparkles, Target } from "lucide-react";
 import { fmtTime, post } from "../api";
 import { usePoll } from "../hooks";
-import { Avatar, countryOf, DeliverableCard, Markdown, TaskPill, timeAgo } from "../ui";
+import { Avatar, type CardAction, countryOf, DeliverableCard, Markdown, TaskPill, timeAgo } from "../ui";
 import { MemberStack } from "./Chats";
 
 export default function Chat({ id, team, users, go }: any) {
@@ -30,7 +30,14 @@ export default function Chat({ id, team, users, go }: any) {
   };
   const open = (task_id: string, index: number) => { setSel({ task_id, index }); setTab("deliver"); };
   // 交付卡片 / 待办里的「下一步」→ 预填到群聊输入框；负责人是团队成员就自动 @
-  const pushAction = (a: { text: string; owner?: string; due?: string }) => {
+  const pushAction = (a: CardAction) => {
+    if (a.kind === "metric" || a.kind === "slice") {
+      const text = a.kind === "metric"
+        ? `请深入分析指标「${a.label}」（当前 ${a.value}${a.delta ? `，变化 ${a.delta}` : ""}）：拆解原因，并给出下一步建议`
+        : `请深入分析「${a.chart}」中的「${a.label}」（${a.value}${a.pct ? `，占 ${a.pct}%` : ""}）：拆解原因，并给出下一步建议`;
+      setDraft({ text, to: null, action: null, n: Date.now() });
+      return;
+    }
     const owner = a.owner || "";
     const member = team.find((b: any) => b.channel === "内部" && b.template !== "chief-of-staff"
       && owner && (owner.includes(b.display_name.split(" · ")[0]) || b.display_name.includes(owner)));
