@@ -33,12 +33,10 @@
 		import console
 	}
 
-	# 没有分享钥匙：仍走基本认证。控制台是 POC 模拟登录，不能裸露在公网。
+	# 演示期：完全公开，任何人打开链接直接用（不弹登录框）。
+	# 收回权限：把下面的 import console 换回 basic_auth { {$CONSOLE_USER} {$CONSOLE_PASSWORD_HASH} } + import console，重启 caddy。
 	# /internal 与 /v1（给 Hermes 用的内部接口）不对外转发。
 	handle {
-		basic_auth {
-			{$CONSOLE_USER} {$CONSOLE_PASSWORD_HASH}
-		}
 		import console
 	}
 
